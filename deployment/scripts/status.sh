@@ -123,6 +123,6 @@ echo "  View logs:       ssh ${RPI_USER}@${RPI_HOST} 'sudo journalctl -u gate-co
 echo "  Restart:         ssh ${RPI_USER}@${RPI_HOST} 'sudo systemctl restart gate-controller'"
 echo "  Stop:            ssh ${RPI_USER}@${RPI_HOST} 'sudo systemctl stop gate-controller'"
 echo "  Start:           ssh ${RPI_USER}@${RPI_HOST} 'sudo systemctl start gate-controller'"
-echo "  View config:     ssh ${RPI_USER}@${RPI_HOST} 'cat /home/pi/gate_controller/config/config.yaml'"
+echo "  View config:     ssh ${RPI_USER}@${RPI_HOST} 'cat ${RPI_DEPLOY_DIR}/config/config.yaml'"
 echo ""
 

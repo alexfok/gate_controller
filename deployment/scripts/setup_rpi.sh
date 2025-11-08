@@ -48,12 +48,12 @@ sudo setcap 'cap_net_raw,cap_net_admin+eip' $(readlink -f $(which python3))
 
 # Create application directory
 echo "▶ Creating application directory..."
-mkdir -p /home/pi/gate_controller
-mkdir -p /home/pi/gate_controller/logs
+mkdir -p $HOME/gate_controller
+mkdir -p $HOME/gate_controller/logs
 
-# Set permissions
+# Set permissions (already owned by current user)
 echo "▶ Setting permissions..."
-chown -R pi:pi /home/pi/gate_controller
+chmod 755 $HOME/gate_controller
 
 echo ""
 echo "✓ Raspberry Pi setup completed!"

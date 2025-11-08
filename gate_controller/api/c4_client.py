@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../..', 'pyContro
 
 from pyControl4.account import C4Account
 from pyControl4.director import C4Director
-from pyControl4.notification import C4Notification
 
 from ..utils.logger import get_logger
 
@@ -46,7 +45,6 @@ class C4Client:
         self.logger = get_logger(__name__)
         
         self.director: Optional[C4Director] = None
-        self.notification: Optional[C4Notification] = None
         self._session: Optional[aiohttp.ClientSession] = None
 
     async def connect(self, max_retries: int = 3, retry_delay: float = 2.0):
@@ -88,9 +86,6 @@ class C4Client:
                 # Create director
                 self.director = C4Director(self.ip, director_bearer_token, self._session)
                 
-                # Create notification client
-                self.notification = C4Notification(self.director, self.notification_agent_id)
-                
                 self.logger.info("Successfully connected to Control4")
                 return  # Success, exit retry loop
                 
@@ -114,7 +109,6 @@ class C4Client:
             await self._session.close()
             self._session = None
         self.director = None
-        self.notification = None
         self.logger.info("Disconnected from Control4")
 
     async def open_gate(self) -> bool:
@@ -170,7 +164,7 @@ class C4Client:
             return False
 
     async def send_notification(self, title: str, message: str, priority: Optional[str] = None) -> bool:
-        """Send push notification.
+        """Send push notification (DISABLED).
         
         Args:
             title: Notification title
@@ -178,26 +172,11 @@ class C4Client:
             priority: Optional priority (low, normal, high, critical)
             
         Returns:
-            True if successful, False otherwise
+            True (notifications are disabled)
         """
-        if not self.notification:
-            self.logger.error("Not connected to Control4")
-            return False
-        
-        try:
-            self.logger.info(f"Sending notification: {title}")
-            
-            if priority:
-                await self.notification.sendNotificationWithPriority(title, message, priority)
-            else:
-                await self.notification.sendPushNotification(title, message)
-            
-            self.logger.debug(f"Notification sent: {title} - {message}")
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to send notification: {e}")
-            return False
+        # Notifications disabled - just log instead
+        self.logger.info(f"Notification (disabled): {title} - {message}")
+        return True
 
     async def check_gate_status(self) -> dict:
         """Check gate status.

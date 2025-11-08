@@ -142,8 +142,8 @@ ssh "${RPI_USER}@${RPI_HOST}" "mkdir -p ${RPI_DEPLOY_DIR}/logs"
 
 # Install Python dependencies
 print_step "Installing Python dependencies..."
-ssh "${RPI_USER}@${RPI_HOST}" << 'ENDSSH'
-cd /home/pi/gate_controller
+ssh "${RPI_USER}@${RPI_HOST}" << ENDSSH
+cd ${RPI_DEPLOY_DIR}
 
 # Check if Python 3 is installed
 if ! command -v python3 &> /dev/null; then
@@ -169,8 +169,12 @@ print_success "Dependencies installed"
 
 # Install systemd service
 print_step "Installing systemd service..."
-ssh "${RPI_USER}@${RPI_HOST}" << 'ENDSSH'
-sudo cp /home/pi/gate_controller/deployment/systemd/gate-controller.service /etc/systemd/system/
+ssh "${RPI_USER}@${RPI_HOST}" << ENDSSH
+# Replace pi user with actual user in service file
+sed -e "s|/home/pi/|/home/${RPI_USER}/|g" \
+    -e "s|User=pi|User=${RPI_USER}|g" \
+    -e "s|Group=pi|Group=${RPI_USER}|g" \
+    ${RPI_DEPLOY_DIR}/deployment/systemd/gate-controller.service | sudo tee /etc/systemd/system/gate-controller.service > /dev/null
 sudo systemctl daemon-reload
 ENDSSH
 
