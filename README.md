@@ -4,27 +4,29 @@ Automated gate control system with BLE token detection and Control4 integration.
 
 ## Features
 
-- **BLE Token Detection**: Automatically scan for registered Bluetooth Low Energy tokens
+- **BLE Token Detection**: Automatically scan for registered Bluetooth Low Energy tokens (iBeacon support)
 - **Automatic Gate Control**: Open gate when registered tokens are detected
-- **Control4 Integration**: Control gates through Control4 system
-- **Notifications**: Send push notifications when gate is opened/closed
-- **Token Management**: Register and manage authorized BLE tokens
-- **Web Dashboard**: (Phase 2) Web interface for monitoring and control
-- **Raspberry Pi Deployment**: (Phase 3) Ready for deployment on Raspberry Pi
+- **Control4 Integration**: Control gates through Control4 system with retry logic
+- **Push Notifications**: Send push notifications to Control4 app when gate is opened/closed
+- **Token Management**: Register and manage authorized BLE tokens via CLI or web interface
+- **Web Dashboard**: ✨ **NEW** Beautiful web interface with real-time monitoring and control
+- **Activity Logging**: Complete history of all gate and token events
+- **Raspberry Pi Deployment**: (Phase 3) Ready for deployment on Raspberry Pi 5
 
 ## Architecture
 
 ```
 gate_controller/
 ├── gate_controller/          # Main package
-│   ├── api/                  # API integrations (C4, Home Assistant)
-│   ├── ble/                  # BLE token scanning
-│   ├── core/                 # Core business logic
+│   ├── api/                  # API integrations (Control4)
+│   ├── ble/                  # BLE token scanning (iBeacon support)
+│   ├── core/                 # Core business logic & activity logging
+│   ├── web/                  # Web dashboard (FastAPI + WebSocket)
 │   ├── config/               # Configuration management
 │   └── utils/                # Utility functions
 ├── tests/                    # Test suite
 ├── config/                   # Configuration files
-└── scripts/                  # Deployment and utility scripts
+└── docs/                     # Documentation
 ```
 
 ## Installation
@@ -58,36 +60,56 @@ tokens:
 
 ## Usage
 
-### Run the gate controller service:
+### Option 1: Run with Web Dashboard (Recommended)
 
 ```bash
-python -m gate_controller
+python -m gate_controller.web_main --config config/config.yaml
 ```
 
-### Manage tokens:
+Then open your browser to: **http://localhost:8000**
+
+The dashboard provides:
+- 📊 Real-time gate status monitoring
+- 🎮 Manual gate control (open/close buttons)
+- 🔑 Token management interface
+- 📜 Activity log viewer
+- 🔄 Live WebSocket updates
+
+See [WEB_DASHBOARD.md](WEB_DASHBOARD.md) for full documentation.
+
+### Option 2: Run CLI Mode Only
+
+```bash
+python -m gate_controller --config config/config.yaml
+```
+
+### Manage tokens via CLI:
 
 ```bash
 # Register a new token
-python -m gate_controller.cli register-token --uuid "ABC123" --name "John's Phone"
+python -m gate_controller.cli --config config/config.yaml register-token --uuid "ABC123" --name "John's Phone"
 
-# List registered tokens
-python -m gate_controller.cli list-tokens
+# List registered tokens with live detection status
+python -m gate_controller.cli --config config/config.yaml list-tokens
 
 # Remove a token
-python -m gate_controller.cli remove-token --uuid "ABC123"
+python -m gate_controller.cli --config config/config.yaml unregister-token --uuid "ABC123"
+
+# Scan for nearby BLE devices
+python -m gate_controller.cli --config config/config.yaml scan-devices
 ```
 
-### Manual gate control:
+### Manual gate control via CLI:
 
 ```bash
 # Open gate
-python -m gate_controller.cli open-gate
+python -m gate_controller.cli --config config/config.yaml open-gate
 
 # Close gate
-python -m gate_controller.cli close-gate
+python -m gate_controller.cli --config config/config.yaml close-gate
 
 # Check gate status
-python -m gate_controller.cli check-status
+python -m gate_controller.cli --config config/config.yaml check-status
 ```
 
 ## Development
