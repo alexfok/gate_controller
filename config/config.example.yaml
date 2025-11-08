@@ -32,3 +32,9 @@ logging:
   level: "INFO"                  # DEBUG, INFO, WARNING, ERROR, CRITICAL
   file: "logs/gate_controller.log"  # Log file path
 
+# Web Dashboard Configuration (optional)
+web:
+  enabled: true                  # Enable web dashboard
+  host: "0.0.0.0"               # Dashboard host (0.0.0.0 for all interfaces)
+  port: 8000                     # Dashboard port
+

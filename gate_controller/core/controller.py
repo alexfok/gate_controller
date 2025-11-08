@@ -11,6 +11,12 @@ from ..config.config import Config
 from .token_manager import TokenManager
 from ..utils.logger import get_logger
 
+# Optional import for activity log
+try:
+    from .activity_log import ActivityLog
+except ImportError:
+    ActivityLog = None
+
 
 class GateState(Enum):
     """Gate states."""
@@ -24,14 +30,16 @@ class GateState(Enum):
 class GateController:
     """Main controller for automated gate management."""
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, activity_log: Optional['ActivityLog'] = None):
         """Initialize gate controller.
         
         Args:
             config: Configuration instance
+            activity_log: Optional activity log instance for web dashboard
         """
         self.config = config
         self.logger = get_logger(__name__, config.log_level, config.log_file)
+        self.activity_log = activity_log
         
         # Initialize components
         self.c4_client = C4Client(
@@ -188,6 +196,10 @@ class GateController:
         """
         self.logger.info(f"Registered token detected: {name} ({uuid})")
         
+        # Log token detection
+        if self.activity_log:
+            self.activity_log.log_token_detected(uuid, name)
+        
         # Check if we're in an active session
         if self.session_start_time:
             time_since_session = (datetime.now() - self.session_start_time).total_seconds()
@@ -222,6 +234,10 @@ class GateController:
             self.gate_state = GateState.OPEN
             self.last_open_time = datetime.now()
             
+            # Log gate opened
+            if self.activity_log:
+                self.activity_log.log_gate_opened(reason)
+            
             # Send notification
             await self.c4_client.send_notification(
                 "Gate Opened",
@@ -230,6 +246,8 @@ class GateController:
             )
         else:
             self.gate_state = GateState.UNKNOWN
+            if self.activity_log:
+                self.activity_log.log_error(f"Failed to open gate: {reason}")
         
         return success
 
@@ -254,6 +272,10 @@ class GateController:
             self.last_open_time = None
             self.session_start_time = None
             
+            # Log gate closed
+            if self.activity_log:
+                self.activity_log.log_gate_closed(reason)
+            
             # Send notification
             await self.c4_client.send_notification(
                 "Gate Closed",
@@ -262,6 +284,8 @@ class GateController:
             )
         else:
             self.gate_state = GateState.UNKNOWN
+            if self.activity_log:
+                self.activity_log.log_error(f"Failed to close gate: {reason}")
         
         return success
 
@@ -307,6 +331,10 @@ class GateController:
             self.ble_scanner.update_registered_tokens(
                 self.token_manager.get_all_tokens()
             )
+            
+            # Log token registration
+            if self.activity_log:
+                self.activity_log.log_token_registered(uuid, name)
         
         return success
 
@@ -319,6 +347,11 @@ class GateController:
         Returns:
             True if successful
         """
+        # Get token name before unregistering (for logging)
+        token = next((t for t in self.token_manager.get_all_tokens() 
+                      if t['uuid'].lower() == uuid.lower()), None)
+        token_name = token['name'] if token else uuid
+        
         success = self.token_manager.unregister_token(uuid)
         
         if success:
@@ -326,6 +359,10 @@ class GateController:
             self.ble_scanner.update_registered_tokens(
                 self.token_manager.get_all_tokens()
             )
+            
+            # Log token unregistration
+            if self.activity_log:
+                self.activity_log.log_token_unregistered(uuid, token_name)
         
         return success
 

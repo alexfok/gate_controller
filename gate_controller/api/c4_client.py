@@ -2,6 +2,7 @@
 
 import sys
 import os
+import asyncio
 import aiohttp
 from typing import Optional
 
@@ -48,42 +49,64 @@ class C4Client:
         self.notification: Optional[C4Notification] = None
         self._session: Optional[aiohttp.ClientSession] = None
 
-    async def connect(self):
-        """Establish connection to Control4 controller."""
+    async def connect(self, max_retries: int = 3, retry_delay: float = 2.0):
+        """Establish connection to Control4 controller with retry logic.
+        
+        Args:
+            max_retries: Maximum number of connection attempts
+            retry_delay: Delay between retries in seconds
+        """
         self.logger.info(f"Connecting to Control4 controller at {self.ip}")
         
-        try:
-            # Create session with SSL verification disabled
-            connector = aiohttp.TCPConnector(ssl=False)
-            self._session = aiohttp.ClientSession(connector=connector)
-            
-            # Authenticate (with SSL disabled for account API too)
-            self.logger.debug("Authenticating with Control4 account...")
-            account = C4Account(self.username, self.password, session=self._session)
-            await account.getAccountBearerToken()
-            
-            # Get controller info
-            self.logger.debug("Getting controller information...")
-            controllers = await account.getAccountControllers()
-            controller_name = controllers.get("controllerCommonName") or controllers.get("name")
-            self.logger.info(f"Connected to controller: {controller_name}")
-            
-            # Get director bearer token
-            self.logger.debug("Getting director bearer token...")
-            director_token_info = await account.getDirectorBearerToken(controller_name)
-            director_bearer_token = director_token_info["token"]
-            
-            # Create director
-            self.director = C4Director(self.ip, director_bearer_token, self._session)
-            
-            # Create notification client
-            self.notification = C4Notification(self.director, self.notification_agent_id)
-            
-            self.logger.info("Successfully connected to Control4")
-            
-        except Exception as e:
-            self.logger.error(f"Failed to connect to Control4: {e}")
-            raise
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                if attempt > 0:
+                    self.logger.info(f"Retry attempt {attempt + 1}/{max_retries}...")
+                    await asyncio.sleep(retry_delay)
+                
+                # Create session with SSL verification disabled
+                connector = aiohttp.TCPConnector(ssl=False)
+                self._session = aiohttp.ClientSession(connector=connector)
+                
+                # Authenticate (with SSL disabled for account API too)
+                self.logger.debug("Authenticating with Control4 account...")
+                account = C4Account(self.username, self.password, session=self._session)
+                await account.getAccountBearerToken()
+                
+                # Get controller info
+                self.logger.debug("Getting controller information...")
+                controllers = await account.getAccountControllers()
+                controller_name = controllers.get("controllerCommonName") or controllers.get("name")
+                self.logger.info(f"Connected to controller: {controller_name}")
+                
+                # Get director bearer token
+                self.logger.debug("Getting director bearer token...")
+                director_token_info = await account.getDirectorBearerToken(controller_name)
+                director_bearer_token = director_token_info["token"]
+                
+                # Create director
+                self.director = C4Director(self.ip, director_bearer_token, self._session)
+                
+                # Create notification client
+                self.notification = C4Notification(self.director, self.notification_agent_id)
+                
+                self.logger.info("Successfully connected to Control4")
+                return  # Success, exit retry loop
+                
+            except Exception as e:
+                last_error = e
+                self.logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
+                
+                # Clean up session on failure
+                if self._session:
+                    await self._session.close()
+                    self._session = None
+                
+                if attempt == max_retries - 1:
+                    # Last attempt failed
+                    self.logger.error(f"Failed to connect after {max_retries} attempts: {last_error}")
+                    raise last_error
 
     async def disconnect(self):
         """Disconnect from Control4 controller."""

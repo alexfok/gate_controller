@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gate Controller Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚪 Gate Controller</h1>
+            <div class="status-badge" id="controller-status">
+                <span class="status-dot"></span>
+                <span class="status-text">Connecting...</span>
+            </div>
+        </header>
+
+        <div class="grid">
+            <!-- Gate Control Panel -->
+            <div class="card">
+                <h2>Gate Control</h2>
+                <div class="gate-status" id="gate-status">
+                    <div class="gate-icon">🚪</div>
+                    <div class="gate-state" id="gate-state">Unknown</div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-primary" id="btn-open-gate">
+                        <span class="btn-icon">🔓</span>
+                        Open Gate
+                    </button>
+                    <button class="btn btn-secondary" id="btn-close-gate">
+                        <span class="btn-icon">🔒</span>
+                        Close Gate
+                    </button>
+                </div>
+                <div class="session-info" id="session-info"></div>
+            </div>
+
+            <!-- Token Management -->
+            <div class="card">
+                <h2>Registered Tokens</h2>
+                <div class="token-list" id="token-list">
+                    <div class="loading">Loading tokens...</div>
+                </div>
+                <button class="btn btn-outline" id="btn-add-token">
+                    <span class="btn-icon">➕</span>
+                    Add Token
+                </button>
+            </div>
+
+            <!-- Activity Log -->
+            <div class="card card-full">
+                <div class="card-header">
+                    <h2>Activity Log</h2>
+                    <button class="btn btn-sm btn-outline" id="btn-clear-log">Clear Log</button>
+                </div>
+                <div class="activity-log" id="activity-log">
+                    <div class="loading">Loading activity...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Token Modal -->
+    <div class="modal" id="add-token-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Token</h3>
+                <button class="modal-close" id="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="token-uuid">Token UUID</label>
+                    <input type="text" id="token-uuid" placeholder="e.g., 2f234454-cf6d-4a0f-adf2-f4911ba9ffa6">
+                    <small>The iBeacon UUID or device address</small>
+                </div>
+                <div class="form-group">
+                    <label for="token-name">Token Name</label>
+                    <input type="text" id="token-name" placeholder="e.g., John's iPhone">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="modal-cancel">Cancel</button>
+                <button class="btn btn-primary" id="modal-save">Add Token</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast"></div>
+
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
+
