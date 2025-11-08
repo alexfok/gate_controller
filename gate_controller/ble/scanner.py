@@ -64,7 +64,7 @@ class BLEScanner:
                         'uuid': device_id,
                         'name': token_name,
                         'address': device.address,
-                        'rssi': device.rssi
+                        'rssi': getattr(device, 'rssi', 0)
                     })
                     self.logger.info(f"Detected registered token: {token_name} ({device_id})")
                     
@@ -165,7 +165,7 @@ class BLEScanner:
                 nearby.append({
                     'address': device.address,
                     'name': device.name or 'Unknown',
-                    'rssi': device.rssi or 0
+                    'rssi': getattr(device, 'rssi', 0)
                 })
             
             self.logger.info(f"Found {len(nearby)} nearby BLE devices")
