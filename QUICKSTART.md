@@ -126,9 +126,16 @@ gate:
 
 ## Troubleshooting
 
-### BLE Permissions on macOS
+### BLE Scanning on macOS
 
-Go to **System Preferences → Security & Privacy → Bluetooth** and allow Terminal/your IDE to access Bluetooth.
+**Note**: BLE scanning may not work reliably on macOS due to system Bluetooth restrictions. This is expected and the BLE functionality is designed for the Raspberry Pi deployment.
+
+If you want to test BLE on macOS:
+1. Go to **System Preferences → Security & Privacy → Bluetooth**
+2. Allow Terminal/your IDE to access Bluetooth
+3. Run outside of any sandboxed environment
+
+**For production use**, deploy to the Raspberry Pi where BLE scanning works without restrictions.
 
 ### Check Logs
 
