@@ -1,9 +1,10 @@
-"""BLE token scanner for detecting registered devices."""
+"""BLE token scanner for detecting registered devices and iBeacons."""
 
 import asyncio
 from typing import List, Dict, Set, Callable, Optional
 from bleak import BleakScanner
 from bleak.backends.device import BLEDevice
+from bleak.backends.scanner import AdvertisementData
 
 from ..utils.logger import get_logger
 
@@ -153,25 +154,94 @@ class BLEScanner:
             duration: Scan duration in seconds
             
         Returns:
-            List of nearby devices with address, name, and rssi
+            List of nearby devices with address, name, rssi, and beacon info
         """
-        self.logger.info(f"Scanning for all nearby BLE devices for {duration}s...")
+        self.logger.info(f"Scanning for all nearby BLE devices and iBeacons for {duration}s...")
         
-        try:
-            devices = await BleakScanner.discover(timeout=duration)
+        nearby = []
+        beacons = []
+        
+        def detection_callback(device: BLEDevice, advertisement_data: AdvertisementData):
+            """Callback for each detected device."""
+            # Check if it's an iBeacon
+            beacon_data = self._parse_ibeacon(advertisement_data)
+            if beacon_data:
+                beacons.append({
+                    'address': device.address,
+                    'name': device.name or 'iBeacon',
+                    'rssi': getattr(device, 'rssi', 0),
+                    'type': 'iBeacon',
+                    'uuid': beacon_data['uuid'],
+                    'major': beacon_data['major'],
+                    'minor': beacon_data['minor']
+                })
+                self.logger.info(f"Found iBeacon: UUID={beacon_data['uuid']}, Major={beacon_data['major']}, Minor={beacon_data['minor']}")
             
-            nearby = []
-            for device in devices:
+            # Add regular device
+            device_key = f"{device.address}:{device.name}"
+            if device_key not in [f"{d['address']}:{d['name']}" for d in nearby]:
                 nearby.append({
                     'address': device.address,
                     'name': device.name or 'Unknown',
-                    'rssi': getattr(device, 'rssi', 0)
+                    'rssi': getattr(device, 'rssi', 0),
+                    'type': 'device'
                 })
+        
+        try:
+            scanner = BleakScanner(detection_callback=detection_callback)
+            await scanner.start()
+            await asyncio.sleep(duration)
+            await scanner.stop()
             
-            self.logger.info(f"Found {len(nearby)} nearby BLE devices")
-            return nearby
+            # Combine regular devices and beacons
+            all_devices = beacons + nearby
+            
+            self.logger.info(f"Found {len(all_devices)} BLE devices ({len(beacons)} iBeacons, {len(nearby)} regular devices)")
+            return all_devices
             
         except Exception as e:
             self.logger.error(f"Error listing nearby devices: {e}")
             return []
+
+    def _parse_ibeacon(self, advertisement_data: AdvertisementData) -> Optional[Dict]:
+        """Parse iBeacon data from advertisement.
+        
+        Args:
+            advertisement_data: BLE advertisement data
+            
+        Returns:
+            Dictionary with uuid, major, minor if iBeacon, None otherwise
+        """
+        try:
+            # iBeacon manufacturer data for Apple (0x004C)
+            if 0x004C in advertisement_data.manufacturer_data:
+                data = advertisement_data.manufacturer_data[0x004C]
+                
+                # iBeacon format: type(1) + length(1) + uuid(16) + major(2) + minor(2) + tx_power(1)
+                if len(data) >= 23 and data[0] == 0x02 and data[1] == 0x15:
+                    # Extract UUID (bytes 2-18)
+                    uuid_bytes = data[2:18]
+                    uuid = '-'.join([
+                        uuid_bytes[0:4].hex().upper(),
+                        uuid_bytes[4:6].hex().upper(),
+                        uuid_bytes[6:8].hex().upper(),
+                        uuid_bytes[8:10].hex().upper(),
+                        uuid_bytes[10:16].hex().upper()
+                    ])
+                    
+                    # Extract major (bytes 18-20)
+                    major = int.from_bytes(data[18:20], byteorder='big')
+                    
+                    # Extract minor (bytes 20-22)
+                    minor = int.from_bytes(data[20:22], byteorder='big')
+                    
+                    return {
+                        'uuid': uuid,
+                        'major': major,
+                        'minor': minor
+                    }
+        except Exception as e:
+            self.logger.debug(f"Error parsing iBeacon data: {e}")
+        
+        return None
 

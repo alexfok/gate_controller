@@ -101,7 +101,7 @@ async def cmd_list_tokens(config: Config, args):
 
 async def cmd_scan_devices(config: Config, args):
     """Scan for nearby BLE devices."""
-    print(f"Scanning for BLE devices ({args.duration}s)...")
+    print(f"Scanning for BLE devices and iBeacons ({args.duration}s)...")
     
     scanner = BLEScanner(registered_tokens=[])
     devices = await scanner.list_nearby_devices(duration=args.duration)
@@ -110,14 +110,41 @@ async def cmd_scan_devices(config: Config, args):
         print("No devices found")
         return
     
-    print(f"\nFound {len(devices)} devices:")
-    print("="*80)
+    # Separate iBeacons and regular devices
+    beacons = [d for d in devices if d.get('type') == 'iBeacon']
+    regular = [d for d in devices if d.get('type') != 'iBeacon']
     
-    table_data = [[i+1, dev['name'], dev['address'], dev['rssi']] 
-                  for i, dev in enumerate(devices)]
+    if beacons:
+        print(f"\n📡 Found {len(beacons)} iBeacon(s):")
+        print("="*100)
+        
+        beacon_data = []
+        for i, dev in enumerate(beacons):
+            beacon_data.append([
+                i+1,
+                dev['name'],
+                dev['uuid'],
+                dev['major'],
+                dev['minor'],
+                dev['rssi']
+            ])
+        
+        print(tabulate(beacon_data, 
+                      headers=['#', 'Name', 'UUID', 'Major', 'Minor', 'RSSI'], 
+                      tablefmt='simple'))
+        print("\n💡 To register an iBeacon, use its UUID:")
+        print("   python3 -m gate_controller.cli register-token --uuid <UUID> --name <name>")
     
-    print(tabulate(table_data, headers=['#', 'Name', 'Address', 'RSSI'], tablefmt='simple'))
-    print("\nTo register a device, use: gate-controller register-token --uuid <address> --name <name>")
+    if regular:
+        print(f"\n📱 Found {len(regular)} regular BLE device(s):")
+        print("="*80)
+        
+        table_data = [[i+1, dev['name'], dev['address'], dev['rssi']] 
+                      for i, dev in enumerate(regular)]
+        
+        print(tabulate(table_data, headers=['#', 'Name', 'Address', 'RSSI'], tablefmt='simple'))
+        print("\n💡 To register a device, use its address:")
+        print("   python3 -m gate_controller.cli register-token --uuid <address> --name <name>")
 
 
 async def cmd_open_gate(config: Config, args):
