@@ -81,7 +81,7 @@ async def cmd_unregister_token(config: Config, args):
 
 
 async def cmd_list_tokens(config: Config, args):
-    """List all registered tokens."""
+    """List all registered tokens with detection status."""
     controller = GateController(config)
     
     tokens = controller.get_registered_tokens()
@@ -90,13 +90,22 @@ async def cmd_list_tokens(config: Config, args):
         print("No tokens registered")
         return
     
+    print(f"\nScanning for registered tokens (5s)...")
+    
+    # Do a quick scan to see which tokens are currently detected
+    scanner = BLEScanner(registered_tokens=tokens)
+    detected = await scanner.scan_once(duration=5.0)
+    detected_uuids = {d['uuid'].lower() for d in detected}
+    
     print(f"\nRegistered Tokens ({len(tokens)}):")
-    print("="*60)
+    print("="*80)
     
-    table_data = [[i+1, token['name'], token['uuid']] 
-                  for i, token in enumerate(tokens)]
+    table_data = []
+    for i, token in enumerate(tokens):
+        status = "🟢 In Range" if token['uuid'].lower() in detected_uuids else "⚪ Not Detected"
+        table_data.append([i+1, token['name'], token['uuid'], status])
     
-    print(tabulate(table_data, headers=['#', 'Name', 'UUID'], tablefmt='simple'))
+    print(tabulate(table_data, headers=['#', 'Name', 'UUID', 'Status'], tablefmt='simple'))
 
 
 async def cmd_scan_devices(config: Config, args):

@@ -49,29 +49,52 @@ class BLEScanner:
         """
         self.logger.debug(f"Starting BLE scan for {duration}s...")
         
-        try:
-            # Discover devices
-            devices = await BleakScanner.discover(timeout=duration)
-            
-            detected = []
-            for device in devices:
-                # Check if device is a registered token
-                # We check both the address and name
-                device_id = self._get_device_identifier(device)
-                
-                if device_id in self.registered_tokens:
-                    token_name = self.registered_tokens[device_id]
+        detected = []
+        detected_uuids = set()
+        
+        def detection_callback(device: BLEDevice, advertisement_data: AdvertisementData):
+            """Callback for each detected device."""
+            # Check if it's an iBeacon with registered UUID
+            beacon_data = self._parse_ibeacon(advertisement_data)
+            if beacon_data:
+                beacon_uuid = beacon_data['uuid'].lower()
+                if beacon_uuid in self.registered_tokens and beacon_uuid not in detected_uuids:
+                    detected_uuids.add(beacon_uuid)
+                    token_name = self.registered_tokens[beacon_uuid]
                     detected.append({
-                        'uuid': device_id,
+                        'uuid': beacon_uuid,
                         'name': token_name,
                         'address': device.address,
                         'rssi': getattr(device, 'rssi', 0)
                     })
-                    self.logger.info(f"Detected registered token: {token_name} ({device_id})")
+                    self.logger.info(f"Detected registered iBeacon: {token_name} ({beacon_uuid})")
                     
                     # Call callback if provided
                     if self.on_token_detected:
-                        self.on_token_detected(device_id, token_name)
+                        self.on_token_detected(beacon_uuid, token_name)
+            
+            # Also check regular device address/name
+            device_id = self._get_device_identifier(device)
+            if device_id in self.registered_tokens and device_id not in detected_uuids:
+                detected_uuids.add(device_id)
+                token_name = self.registered_tokens[device_id]
+                detected.append({
+                    'uuid': device_id,
+                    'name': token_name,
+                    'address': device.address,
+                    'rssi': getattr(device, 'rssi', 0)
+                })
+                self.logger.info(f"Detected registered token: {token_name} ({device_id})")
+                
+                # Call callback if provided
+                if self.on_token_detected:
+                    self.on_token_detected(device_id, token_name)
+        
+        try:
+            scanner = BleakScanner(detection_callback=detection_callback)
+            await scanner.start()
+            await asyncio.sleep(duration)
+            await scanner.stop()
             
             if not detected:
                 self.logger.debug(f"No registered tokens detected in scan")
