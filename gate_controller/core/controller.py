@@ -65,6 +65,16 @@ class GateController:
         self.session_start_time: Optional[datetime] = None
         self._running = False
         self._tasks = []
+    
+    @property
+    def running(self) -> bool:
+        """Check if controller is running."""
+        return self._running
+    
+    @property
+    def active_session(self) -> Optional[datetime]:
+        """Get active session start time."""
+        return self.session_start_time
 
     async def start(self):
         """Start the gate controller."""
