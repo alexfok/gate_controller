@@ -112,6 +112,31 @@ python -m gate_controller.cli --config config/config.yaml close-gate
 python -m gate_controller.cli --config config/config.yaml check-status
 ```
 
+## Raspberry Pi Deployment
+
+Deploy the gate controller to your Raspberry Pi for 24/7 operation:
+
+```bash
+# 1. Initial Pi setup (run once)
+ssh pi@fokhomerpi.local 'bash -s' < deployment/scripts/setup_rpi.sh
+
+# 2. Deploy application
+./deployment/scripts/deploy.sh
+
+# 3. Enable and start service
+ssh pi@fokhomerpi.local 'sudo systemctl enable gate-controller'
+ssh pi@fokhomerpi.local 'sudo systemctl start gate-controller'
+
+# 4. Check status
+./deployment/scripts/status.sh
+```
+
+**Web dashboard will be available at:**
+- http://fokhomerpi.local:8000
+- http://192.168.100.185:8000
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for complete deployment guide.
+
 ## Development
 
 ### Run tests:
@@ -126,26 +151,32 @@ pytest tests/
 python -m gate_controller --verbose
 ```
 
-## Phases
+## Project Phases
 
-### Phase 1: Core Backend (Current)
-- ✅ C4 API integration
-- ✅ BLE token scanning
-- ✅ Gate control logic
-- ✅ Token management
-- ✅ Tests
+### Phase 1: Core Backend ✅ Complete
+- ✅ C4 API integration with retry logic
+- ✅ BLE token scanning with iBeacon support
+- ✅ Automated gate control logic
+- ✅ Token management via CLI
+- ✅ Comprehensive tests
+- ✅ Pushed to GitHub
 
-### Phase 2: Web Dashboard
-- Web UI for monitoring and control
-- Real-time gate activity log
-- Token management interface
-- Manual open/close controls
+### Phase 2: Web Dashboard ✅ Complete
+- ✅ FastAPI REST API server
+- ✅ WebSocket for real-time updates
+- ✅ Modern responsive UI
+- ✅ Activity logging system
+- ✅ Token management interface
+- ✅ Manual gate controls
+- ✅ Pushed to GitHub
 
-### Phase 3: Raspberry Pi Deployment
-- Deployment scripts for fokhomerpi.local
-- Systemd service configuration
-- Auto-start on boot
-- Log rotation and monitoring
+### Phase 3: Raspberry Pi Deployment ✅ Complete
+- ✅ Systemd service for 24/7 operation
+- ✅ Automated deployment scripts
+- ✅ Backup and restore tools
+- ✅ Status monitoring scripts
+- ✅ Complete documentation
+- ⏳ Ready for deployment review
 
 ## License
 
