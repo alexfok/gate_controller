@@ -57,9 +57,9 @@ class C4Client:
             connector = aiohttp.TCPConnector(ssl=False)
             self._session = aiohttp.ClientSession(connector=connector)
             
-            # Authenticate
+            # Authenticate (with SSL disabled for account API too)
             self.logger.debug("Authenticating with Control4 account...")
-            account = C4Account(self.username, self.password)
+            account = C4Account(self.username, self.password, session=self._session)
             await account.getAccountBearerToken()
             
             # Get controller info
