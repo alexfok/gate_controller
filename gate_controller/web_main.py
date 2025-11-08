@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from gate_controller.config.config import load_config
+from gate_controller.config.config import Config
 from gate_controller.core.controller import GateController
 from gate_controller.core.activity_log import ActivityLog
 from gate_controller.web.server import DashboardServer
@@ -24,7 +24,7 @@ async def run_controller_with_dashboard(config_path: str, host: str = "0.0.0.0",
         port: Dashboard port
     """
     # Load configuration
-    config = load_config(config_path)
+    config = Config(config_path)
     logger = get_logger(__name__, config.log_level, config.log_file)
     
     logger.info("="*60)
