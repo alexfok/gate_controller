@@ -1,6 +1,7 @@
 """BLE token scanner for detecting registered devices and iBeacons."""
 
 import asyncio
+import math
 from typing import List, Dict, Set, Callable, Optional
 from bleak import BleakScanner
 from bleak.backends.device import BLEDevice
@@ -61,13 +62,20 @@ class BLEScanner:
                 if beacon_uuid in self.registered_tokens and beacon_uuid not in detected_uuids:
                     detected_uuids.add(beacon_uuid)
                     token_name = self.registered_tokens[beacon_uuid]
+                    rssi = getattr(device, 'rssi', 0)
+                    tx_power = beacon_data.get('tx_power', -59)
+                    distance = self._estimate_distance(rssi, tx_power)
+                    signal_info = self._format_signal_info(rssi, distance)
+                    
                     detected.append({
                         'uuid': beacon_uuid,
                         'name': token_name,
                         'address': device.address,
-                        'rssi': getattr(device, 'rssi', 0)
+                        'rssi': rssi,
+                        'distance': distance,
+                        'tx_power': tx_power
                     })
-                    self.logger.info(f"Detected registered iBeacon: {token_name} ({beacon_uuid})")
+                    self.logger.info(f"Detected iBeacon: {token_name} | {signal_info}")
                     
                     # Call callback if provided
                     if self.on_token_detected:
@@ -78,13 +86,18 @@ class BLEScanner:
             if device_id in self.registered_tokens and device_id not in detected_uuids:
                 detected_uuids.add(device_id)
                 token_name = self.registered_tokens[device_id]
+                rssi = getattr(device, 'rssi', 0)
+                distance = self._estimate_distance(rssi)
+                signal_info = self._format_signal_info(rssi, distance)
+                
                 detected.append({
                     'uuid': device_id,
                     'name': token_name,
                     'address': device.address,
-                    'rssi': getattr(device, 'rssi', 0)
+                    'rssi': rssi,
+                    'distance': distance
                 })
-                self.logger.info(f"Detected registered token: {token_name} ({device_id})")
+                self.logger.info(f"Detected token: {token_name} | {signal_info}")
                 
                 # Call callback if provided
                 if self.on_token_detected:
@@ -153,6 +166,56 @@ class BLEScanner:
             return device.name.lower()
         
         return ""
+    
+    def _estimate_distance(self, rssi: int, tx_power: int = -59) -> float:
+        """Estimate distance from RSSI using path loss model.
+        
+        Args:
+            rssi: Received Signal Strength Indicator in dBm
+            tx_power: Transmission power at 1 meter (default -59 for iBeacon)
+            
+        Returns:
+            Estimated distance in meters
+        """
+        if rssi == 0:
+            return -1.0  # Unknown distance
+        
+        # Path loss exponent (2.0 for free space, 2-4 for indoor environments)
+        n = 2.0
+        
+        # Distance formula: d = 10 ^ ((TxPower - RSSI) / (10 * n))
+        try:
+            distance = math.pow(10, (tx_power - rssi) / (10 * n))
+            return round(distance, 2)
+        except:
+            return -1.0
+    
+    def _format_signal_info(self, rssi: int, distance: float) -> str:
+        """Format signal strength and distance for logging.
+        
+        Args:
+            rssi: Signal strength in dBm
+            distance: Estimated distance in meters
+            
+        Returns:
+            Formatted string with signal info
+        """
+        # Signal quality assessment
+        if rssi >= -60:
+            quality = "Excellent"
+        elif rssi >= -70:
+            quality = "Good"
+        elif rssi >= -80:
+            quality = "Fair"
+        elif rssi >= -90:
+            quality = "Weak"
+        else:
+            quality = "Very Weak"
+        
+        if distance > 0:
+            return f"RSSI: {rssi} dBm ({quality}), Distance: ~{distance}m"
+        else:
+            return f"RSSI: {rssi} dBm ({quality})"
 
     def is_scanning(self) -> bool:
         """Check if scanner is currently scanning.
@@ -189,24 +252,35 @@ class BLEScanner:
             # Check if it's an iBeacon
             beacon_data = self._parse_ibeacon(advertisement_data)
             if beacon_data:
+                rssi = getattr(device, 'rssi', 0)
+                tx_power = beacon_data.get('tx_power', -59)
+                distance = self._estimate_distance(rssi, tx_power)
+                signal_info = self._format_signal_info(rssi, distance)
+                
                 beacons.append({
                     'address': device.address,
                     'name': device.name or 'iBeacon',
-                    'rssi': getattr(device, 'rssi', 0),
+                    'rssi': rssi,
+                    'distance': distance,
                     'type': 'iBeacon',
                     'uuid': beacon_data['uuid'],
                     'major': beacon_data['major'],
-                    'minor': beacon_data['minor']
+                    'minor': beacon_data['minor'],
+                    'tx_power': tx_power
                 })
-                self.logger.info(f"Found iBeacon: UUID={beacon_data['uuid']}, Major={beacon_data['major']}, Minor={beacon_data['minor']}")
+                self.logger.info(f"Found iBeacon: UUID={beacon_data['uuid']}, Major={beacon_data['major']}, Minor={beacon_data['minor']} | {signal_info}")
             
             # Add regular device
             device_key = f"{device.address}:{device.name}"
             if device_key not in [f"{d['address']}:{d['name']}" for d in nearby]:
+                rssi = getattr(device, 'rssi', 0)
+                distance = self._estimate_distance(rssi)
+                
                 nearby.append({
                     'address': device.address,
                     'name': device.name or 'Unknown',
-                    'rssi': getattr(device, 'rssi', 0),
+                    'rssi': rssi,
+                    'distance': distance,
                     'type': 'device'
                 })
         
@@ -233,7 +307,7 @@ class BLEScanner:
             advertisement_data: BLE advertisement data
             
         Returns:
-            Dictionary with uuid, major, minor if iBeacon, None otherwise
+            Dictionary with uuid, major, minor, tx_power if iBeacon, None otherwise
         """
         try:
             # iBeacon manufacturer data for Apple (0x004C)
@@ -258,10 +332,14 @@ class BLEScanner:
                     # Extract minor (bytes 20-22)
                     minor = int.from_bytes(data[20:22], byteorder='big')
                     
+                    # Extract TX power (byte 22) - signed 8-bit integer
+                    tx_power = int.from_bytes(data[22:23], byteorder='big', signed=True)
+                    
                     return {
                         'uuid': uuid,
                         'major': major,
-                        'minor': minor
+                        'minor': minor,
+                        'tx_power': tx_power
                     }
         except Exception as e:
             self.logger.debug(f"Error parsing iBeacon data: {e}")

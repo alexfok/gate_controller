@@ -124,13 +124,36 @@ class ActivityLog:
         """Log gate closed event."""
         self.add_entry("gate_closed", f"Gate closed: {reason}")
     
-    def log_token_detected(self, token_uuid: str, token_name: str):
-        """Log token detected event."""
-        self.add_entry(
-            "token_detected",
-            f"Token detected: {token_name}",
-            {"token_uuid": token_uuid, "token_name": token_name}
-        )
+    def log_token_detected(self, token_uuid: str, token_name: str, rssi: int = None, distance: float = None):
+        """Log token detected event with signal strength and distance."""
+        details = {"token_uuid": token_uuid, "token_name": token_name}
+        
+        message_parts = [f"Token detected: {token_name}"]
+        
+        if rssi is not None:
+            details["rssi"] = rssi
+            details["signal_quality"] = self._get_signal_quality(rssi)
+            message_parts.append(f"RSSI: {rssi} dBm ({details['signal_quality']})")
+        
+        if distance is not None and distance > 0:
+            details["distance_meters"] = distance
+            message_parts.append(f"Distance: ~{distance}m")
+        
+        message = " | ".join(message_parts)
+        self.add_entry("token_detected", message, details)
+    
+    def _get_signal_quality(self, rssi: int) -> str:
+        """Get signal quality description from RSSI."""
+        if rssi >= -60:
+            return "Excellent"
+        elif rssi >= -70:
+            return "Good"
+        elif rssi >= -80:
+            return "Fair"
+        elif rssi >= -90:
+            return "Weak"
+        else:
+            return "Very Weak"
     
     def log_token_registered(self, token_uuid: str, token_name: str):
         """Log token registered event."""

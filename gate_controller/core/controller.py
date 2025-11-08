@@ -140,7 +140,12 @@ class GateController:
                 
                 if detected:
                     for token in detected:
-                        await self._handle_token_detected(token['uuid'], token['name'])
+                        await self._handle_token_detected(
+                            token['uuid'], 
+                            token['name'],
+                            token.get('rssi'),
+                            token.get('distance')
+                        )
                 
                 # Wait before next scan
                 await asyncio.sleep(self.config.ble_scan_interval)
@@ -197,18 +202,26 @@ class GateController:
         """
         self.logger.debug(f"Token detected callback: {name} ({uuid})")
 
-    async def _handle_token_detected(self, uuid: str, name: str):
+    async def _handle_token_detected(self, uuid: str, name: str, rssi: int = None, distance: float = None):
         """Handle detected token and open gate if necessary.
         
         Args:
             uuid: Token UUID
             name: Token name
+            rssi: Signal strength in dBm (optional)
+            distance: Estimated distance in meters (optional)
         """
-        self.logger.info(f"Registered token detected: {name} ({uuid})")
+        signal_info = ""
+        if rssi is not None:
+            signal_info = f" | RSSI: {rssi} dBm"
+        if distance is not None and distance > 0:
+            signal_info += f" | Distance: ~{distance}m"
         
-        # Log token detection
+        self.logger.info(f"Registered token detected: {name} ({uuid}){signal_info}")
+        
+        # Log token detection with signal strength and distance
         if self.activity_log:
-            self.activity_log.log_token_detected(uuid, name)
+            self.activity_log.log_token_detected(uuid, name, rssi, distance)
         
         # Check if we're in an active session
         if self.session_start_time:

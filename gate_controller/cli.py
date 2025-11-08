@@ -125,33 +125,68 @@ async def cmd_scan_devices(config: Config, args):
     
     if beacons:
         print(f"\n📡 Found {len(beacons)} iBeacon(s):")
-        print("="*100)
+        print("="*120)
         
         beacon_data = []
         for i, dev in enumerate(beacons):
+            # Format signal quality
+            rssi = dev.get('rssi', 0)
+            if rssi >= -60:
+                signal = "🟢 Excellent"
+            elif rssi >= -70:
+                signal = "🟡 Good"
+            elif rssi >= -80:
+                signal = "🟠 Fair"
+            elif rssi >= -90:
+                signal = "🔴 Weak"
+            else:
+                signal = "⚫ Very Weak"
+            
+            distance = dev.get('distance', -1)
+            dist_str = f"~{distance}m" if distance > 0 else "Unknown"
+            
             beacon_data.append([
                 i+1,
                 dev['name'],
                 dev['uuid'],
                 dev['major'],
                 dev['minor'],
-                dev['rssi']
+                f"{rssi} dBm",
+                dist_str,
+                signal
             ])
         
         print(tabulate(beacon_data, 
-                      headers=['#', 'Name', 'UUID', 'Major', 'Minor', 'RSSI'], 
+                      headers=['#', 'Name', 'UUID', 'Major', 'Minor', 'RSSI', 'Distance', 'Signal'], 
                       tablefmt='simple'))
         print("\n💡 To register an iBeacon, use its UUID:")
         print("   python3 -m gate_controller.cli register-token --uuid <UUID> --name <name>")
     
     if regular:
         print(f"\n📱 Found {len(regular)} regular BLE device(s):")
-        print("="*80)
+        print("="*100)
         
-        table_data = [[i+1, dev['name'], dev['address'], dev['rssi']] 
-                      for i, dev in enumerate(regular)]
+        table_data = []
+        for i, dev in enumerate(regular):
+            rssi = dev.get('rssi', 0)
+            distance = dev.get('distance', -1)
+            dist_str = f"~{distance}m" if distance > 0 else "Unknown"
+            
+            # Format signal quality
+            if rssi >= -60:
+                signal = "🟢 Excellent"
+            elif rssi >= -70:
+                signal = "🟡 Good"
+            elif rssi >= -80:
+                signal = "🟠 Fair"
+            elif rssi >= -90:
+                signal = "🔴 Weak"
+            else:
+                signal = "⚫ Very Weak"
+            
+            table_data.append([i+1, dev['name'], dev['address'], f"{rssi} dBm", dist_str, signal])
         
-        print(tabulate(table_data, headers=['#', 'Name', 'Address', 'RSSI'], tablefmt='simple'))
+        print(tabulate(table_data, headers=['#', 'Name', 'Address', 'RSSI', 'Distance', 'Signal'], tablefmt='simple'))
         print("\n💡 To register a device, use its address:")
         print("   python3 -m gate_controller.cli register-token --uuid <address> --name <name>")
 
