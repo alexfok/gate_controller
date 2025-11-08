@@ -1,0 +1,34 @@
+# Gate Controller Configuration Example
+# Copy this file to config.yaml and update with your settings
+
+# Control4 Configuration
+c4:
+  ip: "192.168.100.30"           # Control4 controller IP address
+  username: "your-email@example.com"  # Control4 account username
+  password: "your-password"      # Control4 account password
+  gate_device_id: 348            # VBOX-Pro Gateway device ID
+  open_gate_scenario: 21         # Scenario number for opening gate
+  close_gate_scenario: 22        # Scenario number for closing gate  
+  notification_agent_id: 7       # Push notification agent ID
+
+# Gate Behavior Settings
+gate:
+  auto_close_timeout: 300        # Auto-close gate after X seconds (5 minutes)
+  session_timeout: 60            # Prevent re-opening within X seconds (1 minute)
+  status_check_interval: 30      # Check gate status every X seconds
+  ble_scan_interval: 5           # Scan for BLE tokens every X seconds
+
+# Registered BLE Tokens
+tokens:
+  registered: []
+  # Example:
+  # - uuid: "AA:BB:CC:DD:EE:FF"
+  #   name: "John's iPhone"
+  # - uuid: "11:22:33:44:55:66"
+  #   name: "Mary's Phone"
+
+# Logging Configuration
+logging:
+  level: "INFO"                  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  file: "logs/gate_controller.log"  # Log file path
+
