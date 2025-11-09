@@ -312,7 +312,9 @@ class GateController:
         if success:
             self.gate_state = GateState.CLOSED
             self.last_open_time = None
-            self.session_start_time = None
+            # DON'T clear session_start_time - keep session active to prevent immediate re-opening
+            # if token is still in range. Session will naturally expire after session_timeout.
+            # self.session_start_time = None  # <-- This was causing the issue!
             
             # Log gate closed
             if self.activity_log:
