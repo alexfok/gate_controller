@@ -69,10 +69,16 @@
                     <div class="card card-full">
                         <div class="card-header">
                             <h2>Registered Tokens</h2>
-                            <button class="btn btn-sm btn-primary" id="btn-add-token">
-                                <span class="btn-icon">➕</span>
-                                Add Token
-                            </button>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-sm btn-primary" id="btn-add-token">
+                                    <span class="btn-icon">➕</span>
+                                    Add Token
+                                </button>
+                                <button class="btn btn-sm btn-outline" id="btn-scan-all">
+                                    <span class="btn-icon">📡</span>
+                                    Scan All Devices
+                                </button>
+                            </div>
                         </div>
                         <div class="filter-bar">
                             <input type="text" id="token-filter" class="filter-input" placeholder="Filter tokens...">
@@ -193,7 +199,7 @@
 
     <!-- Add Token Modal -->
     <div class="modal" id="add-token-modal">
-        <div class="modal-content">
+        <div class="modal-content modal-content-large">
             <div class="modal-header">
                 <h3>Add New Token</h3>
                 <button class="modal-close" id="modal-close">&times;</button>
@@ -208,10 +214,83 @@
                     <label for="token-name">Token Name</label>
                     <input type="text" id="token-name" placeholder="e.g., John's iPhone">
                 </div>
+                
+                <div class="form-divider">
+                    <span>OR</span>
+                </div>
+                
+                <div class="form-group">
+                    <label>Scan for Nearby iBeacons</label>
+                    <button class="btn btn-outline btn-block" id="btn-scan-beacons">
+                        <span class="btn-icon">📡</span>
+                        Scan for iBeacons (10s)
+                    </button>
+                    <small>Click on a scanned beacon to auto-fill the form</small>
+                </div>
+                
+                <div class="scan-results-container" id="add-scan-list">
+                    <div class="empty-state">Click "Scan for iBeacons" to find nearby devices</div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" id="modal-cancel">Cancel</button>
                 <button class="btn btn-primary" id="modal-save">Add Token</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Token Modal -->
+    <div class="modal" id="edit-token-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Token</h3>
+                <button class="modal-close" id="edit-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Token UUID</label>
+                    <div class="form-readonly" id="edit-token-uuid-display"></div>
+                    <small>UUID cannot be changed</small>
+                </div>
+                <div class="form-group">
+                    <label for="edit-token-name">Token Name</label>
+                    <input type="text" id="edit-token-name" placeholder="e.g., John's iPhone">
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="edit-token-active" checked>
+                        <span>Active (token will trigger gate when detected)</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="edit-modal-cancel">Cancel</button>
+                <button class="btn btn-primary" id="edit-modal-save">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scan Results Modal -->
+    <div class="modal" id="scan-results-modal">
+        <div class="modal-content modal-content-large">
+            <div class="modal-header">
+                <h3>📡 Scan Results</h3>
+                <button class="modal-close" id="scan-results-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="scan-results-section">
+                    <h4>iBeacons Found</h4>
+                    <div class="scan-results-list" id="scan-ibeacon-list">
+                        <div class="empty-state">No iBeacons found</div>
+                    </div>
+                </div>
+                
+                <div class="scan-results-section">
+                    <h4>Other BLE Devices</h4>
+                    <div class="scan-results-list" id="scan-device-list">
+                        <div class="empty-state">No devices found</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

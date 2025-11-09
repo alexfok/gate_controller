@@ -741,3 +741,186 @@ h2 {
     }
 }
 
+/* Token Actions */
+.token-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.btn-edit, .btn-delete {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    transition: background-color 0.2s;
+}
+
+.btn-edit:hover {
+    background-color: rgba(52, 152, 219, 0.1);
+}
+
+.btn-delete:hover {
+    background-color: rgba(231, 76, 60, 0.1);
+}
+
+/* Token Active Badge */
+.token-active-badge {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 0.25rem;
+    background-color: var(--success-color);
+    color: white;
+    font-weight: 500;
+}
+
+.token-active-badge.inactive {
+    background-color: var(--secondary-color);
+}
+
+.token-item.inactive {
+    opacity: 0.7;
+}
+
+/* Modal Large */
+.modal-content-large {
+    max-width: 700px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+/* Form Divider */
+.form-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 1.5rem 0;
+    color: var(--secondary-color);
+}
+
+.form-divider::before,
+.form-divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.form-divider span {
+    padding: 0 1rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+/* Form Readonly */
+.form-readonly {
+    padding: 0.75rem;
+    background-color: var(--bg-secondary);
+    border: 2px solid var(--border-color);
+    border-radius: 0.25rem;
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 0.9rem;
+    color: var(--text-color);
+}
+
+/* Checkbox Label */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 1.25rem;
+    height: 1.25rem;
+    cursor: pointer;
+}
+
+.checkbox-label span {
+    font-size: 0.95rem;
+}
+
+/* Scan Results Container */
+.scan-results-container {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    background-color: var(--bg-secondary);
+}
+
+/* Scan Results Section */
+.scan-results-section {
+    margin-bottom: 1.5rem;
+}
+
+.scan-results-section:last-child {
+    margin-bottom: 0;
+}
+
+.scan-results-section h4 {
+    margin-bottom: 0.75rem;
+    color: var(--primary-color);
+    font-size: 1rem;
+}
+
+.scan-results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Scan Result Item */
+.scan-result-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem;
+    background-color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+}
+
+.scan-result-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 4px rgba(52, 152, 219, 0.1);
+}
+
+.scan-result-selectable {
+    cursor: pointer;
+}
+
+.scan-result-selectable:hover {
+    background-color: rgba(52, 152, 219, 0.05);
+}
+
+.scan-result-info {
+    flex: 1;
+}
+
+.scan-result-name {
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 0.25rem;
+}
+
+.scan-result-details {
+    font-size: 0.85rem;
+    color: var(--secondary-color);
+    font-family: 'Monaco', 'Consolas', monospace;
+    line-height: 1.4;
+}
+
+/* Button Block */
+.btn-block {
+    width: 100%;
+    justify-content: center;
+}
+

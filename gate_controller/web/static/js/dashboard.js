@@ -10,6 +10,9 @@ class Dashboard {
         this.isScanning = false;
         this.isEditingConfig = false;
         this.refreshIntervals = {};
+        this.scannedDevices = { ibeacons: [], devices: [] }; // Full scan results
+        this.isScanningAll = false;
+        this.editingToken = null;
         this.init();
     }
 
@@ -194,9 +197,19 @@ class Dashboard {
 
         // Token management
         document.getElementById('btn-add-token').addEventListener('click', () => this.showAddTokenModal());
+        document.getElementById('btn-scan-all').addEventListener('click', () => this.scanAllDevices());
         document.getElementById('modal-close').addEventListener('click', () => this.hideAddTokenModal());
         document.getElementById('modal-cancel').addEventListener('click', () => this.hideAddTokenModal());
         document.getElementById('modal-save').addEventListener('click', () => this.saveToken());
+        document.getElementById('btn-scan-beacons').addEventListener('click', () => this.scanBeaconsForAdd());
+
+        // Edit token modal
+        document.getElementById('edit-modal-close').addEventListener('click', () => this.hideEditTokenModal());
+        document.getElementById('edit-modal-cancel').addEventListener('click', () => this.hideEditTokenModal());
+        document.getElementById('edit-modal-save').addEventListener('click', () => this.saveTokenEdit());
+
+        // Scan results modal
+        document.getElementById('scan-results-close').addEventListener('click', () => this.hideScanResultsModal());
 
         // Token filter
         const filterInput = document.getElementById('token-filter');
@@ -217,10 +230,20 @@ class Dashboard {
         // Activity log
         document.getElementById('btn-clear-log').addEventListener('click', () => this.clearLog());
 
-        // Close modal on outside click
+        // Close modals on outside click
         document.getElementById('add-token-modal').addEventListener('click', (e) => {
             if (e.target.id === 'add-token-modal') {
                 this.hideAddTokenModal();
+            }
+        });
+        document.getElementById('edit-token-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'edit-token-modal') {
+                this.hideEditTokenModal();
+            }
+        });
+        document.getElementById('scan-results-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'scan-results-modal') {
+                this.hideScanResultsModal();
             }
         });
     }
@@ -336,6 +359,12 @@ class Dashboard {
             const statusClass = isOnline ? 'online' : 'offline';
             const statusText = isOnline ? '🟢 Online' : '⚪ Offline';
             
+            // Check active status (default true if not present)
+            const isActive = token.active !== undefined ? token.active : true;
+            const activeClass = isActive ? 'active' : 'inactive';
+            const activeIcon = isActive ? '✅' : '⏸️';
+            const activeText = isActive ? 'Active' : 'Paused';
+            
             let signalInfo = '';
             if (isOnline && detected) {
                 if (detected.rssi) signalInfo += `RSSI: ${detected.rssi} dBm`;
@@ -346,21 +375,38 @@ class Dashboard {
             }
 
             return `
-                <div class="token-item ${statusClass}">
+                <div class="token-item ${statusClass} ${activeClass}">
                     <div class="token-info">
-                        <div class="token-name">${this.escapeHtml(token.name)}</div>
+                        <div class="token-name">
+                            ${this.escapeHtml(token.name)}
+                            <span class="token-active-badge ${activeClass}">${activeIcon} ${activeText}</span>
+                        </div>
                         <div class="token-uuid">${this.escapeHtml(token.uuid)}</div>
                     </div>
                     <div class="token-status">
                         <div class="token-status-badge ${statusClass}">${statusText}</div>
                         ${signalInfo ? `<div class="token-signal">${signalInfo}</div>` : ''}
                     </div>
-                    <button class="btn-delete" data-uuid="${this.escapeHtml(token.uuid)}">
-                        🗑️
-                    </button>
+                    <div class="token-actions">
+                        <button class="btn-edit" data-uuid="${this.escapeHtml(token.uuid)}" title="Edit token">
+                            ✏️
+                        </button>
+                        <button class="btn-delete" data-uuid="${this.escapeHtml(token.uuid)}" title="Delete token">
+                            🗑️
+                        </button>
+                    </div>
                 </div>
             `;
         }).join('');
+
+        // Add edit event listeners
+        container.querySelectorAll('.btn-edit').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const uuid = e.currentTarget.dataset.uuid;
+                const token = tokens.find(t => t.uuid === uuid);
+                this.showEditTokenModal(token);
+            });
+        });
 
         // Add delete event listeners
         container.querySelectorAll('.btn-delete').forEach(btn => {
@@ -462,13 +508,6 @@ class Dashboard {
     }
 
     // Token Management
-    showAddTokenModal() {
-        document.getElementById('add-token-modal').style.display = 'flex';
-        document.getElementById('token-uuid').value = '';
-        document.getElementById('token-name').value = '';
-        document.getElementById('token-uuid').focus();
-    }
-
     hideAddTokenModal() {
         document.getElementById('add-token-modal').style.display = 'none';
     }
@@ -486,7 +525,7 @@ class Dashboard {
             const response = await fetch('/api/tokens', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ uuid, name })
+                body: JSON.stringify({ uuid, name, active: true })
             });
 
             const data = await response.json();
@@ -676,6 +715,216 @@ class Dashboard {
                 this.renderDetectedTokens();
             }
         }, 5000);
+    }
+
+    // Scan All Devices
+    async scanAllDevices() {
+        if (this.isScanningAll) {
+            this.showToast('Scan already in progress', 'warning');
+            return;
+        }
+
+        const btn = document.getElementById('btn-scan-all');
+        const originalText = btn.innerHTML;
+        
+        try {
+            this.isScanningAll = true;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="btn-icon">🔄</span> Scanning...';
+            
+            this.showToast('Scanning for all BLE devices...', 'info');
+            
+            const response = await fetch('/api/scan/all?duration=10', {
+                method: 'GET'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.scannedDevices = {
+                    ibeacons: data.ibeacons || [],
+                    devices: data.devices || []
+                };
+                this.showScanResultsModal();
+                this.showToast(`Found ${data.total} device(s)`, 'success');
+            } else {
+                this.showToast('Scan failed', 'error');
+            }
+        } catch (error) {
+            console.error('Scan error:', error);
+            this.showToast('Failed to scan devices', 'error');
+        } finally {
+            this.isScanningAll = false;
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    showScanResultsModal() {
+        const modal = document.getElementById('scan-results-modal');
+        const ibeaconList = document.getElementById('scan-ibeacon-list');
+        const deviceList = document.getElementById('scan-device-list');
+
+        // Render iBeacons
+        if (this.scannedDevices.ibeacons.length === 0) {
+            ibeaconList.innerHTML = '<div class="empty-state">No iBeacons found</div>';
+        } else {
+            ibeaconList.innerHTML = this.scannedDevices.ibeacons.map(beacon => `
+                <div class="scan-result-item">
+                    <div class="scan-result-info">
+                        <div class="scan-result-name">${this.escapeHtml(beacon.name || 'Unknown iBeacon')}</div>
+                        <div class="scan-result-details">
+                            UUID: ${this.escapeHtml(beacon.uuid)}<br>
+                            ${beacon.rssi ? `RSSI: ${beacon.rssi} dBm` : ''}
+                            ${beacon.distance ? ` | ~${beacon.distance}m` : ''}
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="dashboard.registerScannedToken('${this.escapeHtml(beacon.uuid)}', '${this.escapeHtml(beacon.name || 'iBeacon')}')">
+                        Register
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // Render regular devices
+        if (this.scannedDevices.devices.length === 0) {
+            deviceList.innerHTML = '<div class="empty-state">No regular BLE devices found</div>';
+        } else {
+            deviceList.innerHTML = this.scannedDevices.devices.map(device => `
+                <div class="scan-result-item">
+                    <div class="scan-result-info">
+                        <div class="scan-result-name">${this.escapeHtml(device.name || 'Unknown Device')}</div>
+                        <div class="scan-result-details">
+                            ${this.escapeHtml(device.address)}
+                            ${device.rssi ? ` | RSSI: ${device.rssi} dBm` : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        modal.style.display = 'flex';
+    }
+
+    hideScanResultsModal() {
+        document.getElementById('scan-results-modal').style.display = 'none';
+    }
+
+    async registerScannedToken(uuid, name) {
+        // Close scan results and open add token modal with pre-filled data
+        this.hideScanResultsModal();
+        this.showAddTokenModal(uuid, name);
+    }
+
+    // Edit Token
+    showEditTokenModal(token) {
+        if (!token) return;
+        
+        this.editingToken = token;
+        document.getElementById('edit-token-name').value = token.name;
+        document.getElementById('edit-token-active').checked = token.active !== undefined ? token.active : true;
+        document.getElementById('edit-token-uuid-display').textContent = token.uuid;
+        document.getElementById('edit-token-modal').style.display = 'flex';
+    }
+
+    hideEditTokenModal() {
+        document.getElementById('edit-token-modal').style.display = 'none';
+        this.editingToken = null;
+    }
+
+    async saveTokenEdit() {
+        if (!this.editingToken) return;
+
+        const name = document.getElementById('edit-token-name').value.trim();
+        const active = document.getElementById('edit-token-active').checked;
+
+        if (!name) {
+            this.showToast('Please enter a token name', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/tokens/${this.editingToken.uuid}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name, active })
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showToast('Token updated successfully', 'success');
+                this.hideEditTokenModal();
+                await this.loadTokens();
+            } else {
+                this.showToast(data.message || 'Failed to update token', 'error');
+            }
+        } catch (error) {
+            console.error('Update error:', error);
+            this.showToast('Failed to update token', 'error');
+        }
+    }
+
+    // Smart Add Token with Scan
+    async scanBeaconsForAdd() {
+        const btn = document.getElementById('btn-scan-beacons');
+        const scanList = document.getElementById('add-scan-list');
+        const originalText = btn.innerHTML;
+
+        try {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="btn-icon">🔄</span> Scanning...';
+            scanList.innerHTML = '<div class="empty-state">Scanning for iBeacons...</div>';
+
+            const response = await fetch('/api/scan/all?duration=10', {
+                method: 'GET'
+            });
+
+            const data = await response.json();
+
+            if (data.success && data.ibeacons.length > 0) {
+                scanList.innerHTML = data.ibeacons.map(beacon => `
+                    <div class="scan-result-item scan-result-selectable" data-uuid="${this.escapeHtml(beacon.uuid)}" data-name="${this.escapeHtml(beacon.name || 'iBeacon')}">
+                        <div class="scan-result-info">
+                            <div class="scan-result-name">${this.escapeHtml(beacon.name || 'Unknown iBeacon')}</div>
+                            <div class="scan-result-details">
+                                ${this.escapeHtml(beacon.uuid)}<br>
+                                ${beacon.rssi ? `RSSI: ${beacon.rssi} dBm` : ''}
+                                ${beacon.distance ? ` | ~${beacon.distance}m` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Add click handlers
+                scanList.querySelectorAll('.scan-result-selectable').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        const uuid = e.currentTarget.dataset.uuid;
+                        const name = e.currentTarget.dataset.name;
+                        document.getElementById('token-uuid').value = uuid;
+                        document.getElementById('token-name').value = name;
+                    });
+                });
+            } else {
+                scanList.innerHTML = '<div class="empty-state">No iBeacons found. You can still enter UUID manually.</div>';
+            }
+        } catch (error) {
+            console.error('Scan error:', error);
+            scanList.innerHTML = '<div class="empty-state">Scan failed. Please enter UUID manually.</div>';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    // Update showAddTokenModal to support pre-filled data
+    showAddTokenModal(uuid = '', name = '') {
+        document.getElementById('token-uuid').value = uuid;
+        document.getElementById('token-name').value = name;
+        document.getElementById('add-scan-list').innerHTML = '<div class="empty-state">Click "Scan for iBeacons" to find nearby devices</div>';
+        document.getElementById('add-token-modal').style.display = 'flex';
     }
 
     // Utilities
