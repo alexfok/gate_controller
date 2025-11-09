@@ -3,6 +3,8 @@ Web server for gate controller dashboard.
 """
 import asyncio
 import json
+import os
+import subprocess
 from datetime import datetime
 from typing import List, Dict, Optional
 from pathlib import Path
@@ -186,7 +188,7 @@ class DashboardServer:
         async def get_activity(limit: int = 50, event_type: Optional[str] = None):
             """Get activity log entries."""
             entries = self.activity_log.get_entries(limit=limit, event_type=event_type)
-            return {"entries": entries}
+            return {"activity": entries}
         
         @self.app.delete("/api/activity")
         async def clear_activity():
@@ -194,6 +196,26 @@ class DashboardServer:
             self.activity_log.clear_entries()
             await self._broadcast_update("activity_cleared", {})
             return {"success": True, "message": "Activity log cleared"}
+        
+        @self.app.post("/api/service/restart")
+        async def restart_service():
+            """Restart the service if running under systemd."""
+            try:
+                # Check if running under systemd
+                if os.environ.get('INVOCATION_ID'):
+                    # Running under systemd - use systemctl to restart
+                    subprocess.Popen(['sudo', 'systemctl', 'restart', 'gate-controller.service'])
+                    self.activity_log.add_entry("system", "Service restart requested via dashboard")
+                    return {"success": True, "message": "Service restart initiated"}
+                else:
+                    # Not running under systemd - can't auto-restart
+                    return {
+                        "success": False, 
+                        "message": "Service restart not available. Please restart manually or run as systemd service."
+                    }
+            except Exception as e:
+                self.logger.error(f"Failed to restart service: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
         
         @self.app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
@@ -208,8 +230,9 @@ class DashboardServer:
                     "type": "status",
                     "data": {
                         "controller_running": self.controller.running,
-                        "gate_status": self.controller.gate_state,
-                        "active_session": self.controller.active_session is not None
+                        "gate_status": self.controller.gate_state.value if self.controller.gate_state else "unknown",
+                        "active_session": self.controller.active_session is not None,
+                        "session_start": self.controller.active_session.isoformat() if self.controller.active_session else None
                     }
                 })
                 
@@ -258,12 +281,17 @@ class DashboardServer:
             "session_start": self.controller.active_session.isoformat() if self.controller.active_session else None
         })
     
-    async def broadcast_token_detected(self, token_uuid: str, token_name: str):
+    async def broadcast_token_detected(self, token_uuid: str, token_name: str, rssi: int = None, distance: float = None):
         """Broadcast token detection event."""
-        await self._broadcast_update("token_detected", {
+        data = {
             "uuid": token_uuid,
             "name": token_name
-        })
+        }
+        if rssi is not None:
+            data["rssi"] = rssi
+        if distance is not None:
+            data["distance"] = distance
+        await self._broadcast_update("token_detected", data)
     
     async def broadcast_gate_opened(self, reason: str):
         """Broadcast gate opened event."""

@@ -30,16 +30,18 @@ class GateState(Enum):
 class GateController:
     """Main controller for automated gate management."""
 
-    def __init__(self, config: Config, activity_log: Optional['ActivityLog'] = None):
+    def __init__(self, config: Config, activity_log: Optional['ActivityLog'] = None, dashboard_server=None):
         """Initialize gate controller.
         
         Args:
             config: Configuration instance
             activity_log: Optional activity log instance for web dashboard
+            dashboard_server: Optional dashboard server for WebSocket broadcasts
         """
         self.config = config
         self.logger = get_logger(__name__, config.log_level, config.log_file)
         self.activity_log = activity_log
+        self.dashboard_server = dashboard_server
         
         # Initialize components
         self.c4_client = C4Client(
@@ -222,6 +224,10 @@ class GateController:
         # Log token detection with signal strength and distance
         if self.activity_log:
             self.activity_log.log_token_detected(uuid, name, rssi, distance)
+        
+        # Broadcast to dashboard via WebSocket
+        if self.dashboard_server:
+            await self.dashboard_server.broadcast_token_detected(uuid, name, rssi, distance)
         
         # Check if we're in an active session
         if self.session_start_time:

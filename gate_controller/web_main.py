@@ -41,6 +41,9 @@ async def run_controller_with_dashboard(config_path: str, host: str = "0.0.0.0",
     # Create dashboard server
     dashboard = DashboardServer(config, controller, activity_log)
     
+    # Connect controller to dashboard for WebSocket broadcasts
+    controller.dashboard_server = dashboard
+    
     try:
         # Start controller in background
         logger.info("Starting gate controller...")

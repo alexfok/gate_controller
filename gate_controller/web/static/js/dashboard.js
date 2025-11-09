@@ -19,6 +19,12 @@ class Dashboard {
         this.setupEventListeners();
         this.loadInitialData();
         this.startPeriodicRefresh();
+        
+        // Restore last active tab from localStorage
+        const savedTab = localStorage.getItem('activeTab');
+        if (savedTab) {
+            this.switchTab(savedTab);
+        }
     }
 
     // Tab Management
@@ -45,9 +51,16 @@ class Dashboard {
         });
         document.getElementById(`${tabName}-pane`).classList.add('active');
 
+        // Save to localStorage
+        localStorage.setItem('activeTab', tabName);
+
         // Load tab-specific data
         if (tabName === 'config') {
             this.loadConfig();
+        } else if (tabName === 'tokens') {
+            this.loadTokens();
+        } else if (tabName === 'activity') {
+            this.loadActivity();
         }
     }
 
@@ -582,15 +595,39 @@ class Dashboard {
             const data = await response.json();
             
             if (data.success) {
-                this.showToast('Configuration saved successfully. Please restart the service.', 'success');
+                this.showToast('Configuration saved successfully', 'success');
                 this.isEditingConfig = false;
                 this.toggleConfigEdit(false);
+                this.config = null; // Clear cached config to force reload
                 await this.loadConfig();
+                
+                // Ask user if they want to restart the service
+                if (confirm('Configuration saved. Would you like to restart the service now for changes to take effect?')) {
+                    await this.restartService();
+                }
             } else {
                 this.showToast(data.message || 'Failed to save configuration', 'error');
             }
         } catch (error) {
             this.showToast('Failed to save configuration', 'error');
+        }
+    }
+
+    async restartService() {
+        try {
+            const response = await fetch('/api/service/restart', {
+                method: 'POST'
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showToast('Service restart initiated. Dashboard will reconnect automatically.', 'success');
+            } else {
+                this.showToast(data.message || 'Failed to restart service', 'error');
+            }
+        } catch (error) {
+            this.showToast('Failed to restart service. Please restart manually.', 'error');
         }
     }
 
