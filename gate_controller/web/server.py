@@ -72,7 +72,7 @@ class DashboardServer:
             return {
                 "timestamp": datetime.now().isoformat(),
                 "controller_running": self.controller.running,
-                "gate_status": self.controller.gate_state,
+                "gate_status": self.controller.gate_state.value if self.controller.gate_state else "unknown",
                 "active_session": self.controller.active_session is not None,
                 "session_start": self.controller.active_session.isoformat() if self.controller.active_session else None
             }
@@ -116,6 +116,24 @@ class DashboardServer:
                 return {"success": True, "message": "Token unregistered successfully"}
             else:
                 raise HTTPException(status_code=400, detail="Failed to unregister token")
+        
+        @self.app.get("/api/config")
+        async def get_config():
+            """Get system configuration."""
+            return {
+                "c4": {
+                    "ip": self.config.c4_ip,
+                    "gate_device_id": self.config.gate_device_id,
+                    "open_gate_scenario": self.config.open_gate_scenario,
+                    "close_gate_scenario": self.config.close_gate_scenario
+                },
+                "gate": {
+                    "auto_close_timeout": self.config.auto_close_timeout,
+                    "session_timeout": self.config.session_timeout,
+                    "status_check_interval": self.config.status_check_interval,
+                    "ble_scan_interval": self.config.ble_scan_interval
+                }
+            }
         
         @self.app.post("/api/gate/open")
         async def open_gate():
@@ -212,7 +230,7 @@ class DashboardServer:
         """Broadcast current status to all clients."""
         await self._broadcast_update("status", {
             "controller_running": self.controller.running,
-            "gate_status": self.controller.gate_state,
+            "gate_status": self.controller.gate_state.value if self.controller.gate_state else "unknown",
             "active_session": self.controller.active_session is not None,
             "session_start": self.controller.active_session.isoformat() if self.controller.active_session else None
         })

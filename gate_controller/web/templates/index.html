@@ -16,47 +16,145 @@
             </div>
         </header>
 
-        <div class="grid">
-            <!-- Gate Control Panel -->
-            <div class="card">
-                <h2>Gate Control</h2>
-                <div class="gate-status" id="gate-status">
-                    <div class="gate-icon">🚪</div>
-                    <div class="gate-state" id="gate-state">Unknown</div>
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="gate-control">
+                <span class="tab-icon">🎮</span>
+                Gate Control
+            </button>
+            <button class="tab-btn" data-tab="tokens">
+                <span class="tab-icon">🔑</span>
+                Tokens Management
+            </button>
+            <button class="tab-btn" data-tab="config">
+                <span class="tab-icon">⚙️</span>
+                Configuration
+            </button>
+            <button class="tab-btn" data-tab="activity">
+                <span class="tab-icon">📜</span>
+                Activity Log
+            </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+            <!-- Gate Control Tab -->
+            <div class="tab-pane active" id="gate-control-pane">
+                <div class="grid">
+                    <div class="card">
+                        <h2>Gate Status</h2>
+                        <div class="gate-status" id="gate-status">
+                            <div class="gate-icon">🚪</div>
+                            <div class="gate-state" id="gate-state">Unknown</div>
+                        </div>
+                        <div class="button-group">
+                            <button class="btn btn-primary" id="btn-open-gate">
+                                <span class="btn-icon">🔓</span>
+                                Open Gate
+                            </button>
+                            <button class="btn btn-secondary" id="btn-close-gate">
+                                <span class="btn-icon">🔒</span>
+                                Close Gate
+                            </button>
+                        </div>
+                        <div class="session-info" id="session-info"></div>
+                    </div>
                 </div>
-                <div class="button-group">
-                    <button class="btn btn-primary" id="btn-open-gate">
-                        <span class="btn-icon">🔓</span>
-                        Open Gate
-                    </button>
-                    <button class="btn btn-secondary" id="btn-close-gate">
-                        <span class="btn-icon">🔒</span>
-                        Close Gate
-                    </button>
-                </div>
-                <div class="session-info" id="session-info"></div>
             </div>
 
-            <!-- Token Management -->
-            <div class="card">
-                <h2>Registered Tokens</h2>
-                <div class="token-list" id="token-list">
-                    <div class="loading">Loading tokens...</div>
+            <!-- Tokens Management Tab -->
+            <div class="tab-pane" id="tokens-pane">
+                <div class="grid">
+                    <!-- Registered Tokens -->
+                    <div class="card card-full">
+                        <div class="card-header">
+                            <h2>Registered Tokens</h2>
+                            <button class="btn btn-sm btn-primary" id="btn-add-token">
+                                <span class="btn-icon">➕</span>
+                                Add Token
+                            </button>
+                        </div>
+                        <div class="filter-bar">
+                            <input type="text" id="token-filter" class="filter-input" placeholder="Filter tokens...">
+                            <button class="btn btn-sm btn-outline" id="btn-clear-filter">Clear</button>
+                        </div>
+                        <div class="token-list" id="token-list">
+                            <div class="loading">Loading tokens...</div>
+                        </div>
+                    </div>
+
+                    <!-- Detected Tokens -->
+                    <div class="card card-full">
+                        <div class="card-header">
+                            <h2>Recently Detected Tokens</h2>
+                            <span class="badge" id="detected-count">0</span>
+                        </div>
+                        <div class="detected-token-list" id="detected-token-list">
+                            <div class="empty-state">No tokens detected yet</div>
+                        </div>
+                    </div>
                 </div>
-                <button class="btn btn-outline" id="btn-add-token">
-                    <span class="btn-icon">➕</span>
-                    Add Token
-                </button>
             </div>
 
-            <!-- Activity Log -->
-            <div class="card card-full">
-                <div class="card-header">
-                    <h2>Activity Log</h2>
-                    <button class="btn btn-sm btn-outline" id="btn-clear-log">Clear Log</button>
+            <!-- Configuration Tab -->
+            <div class="tab-pane" id="config-pane">
+                <div class="grid">
+                    <div class="card">
+                        <h2>Control4 Settings</h2>
+                        <div class="config-group">
+                            <div class="config-item">
+                                <label>Controller IP</label>
+                                <div class="config-value" id="config-c4-ip">-</div>
+                            </div>
+                            <div class="config-item">
+                                <label>Gate Device ID</label>
+                                <div class="config-value" id="config-gate-device-id">-</div>
+                            </div>
+                            <div class="config-item">
+                                <label>Open Scenario</label>
+                                <div class="config-value" id="config-open-scenario">-</div>
+                            </div>
+                            <div class="config-item">
+                                <label>Close Scenario</label>
+                                <div class="config-value" id="config-close-scenario">-</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h2>Gate Behavior</h2>
+                        <div class="config-group">
+                            <div class="config-item">
+                                <label>Auto-Close Timeout</label>
+                                <div class="config-value" id="config-auto-close">-</div>
+                            </div>
+                            <div class="config-item">
+                                <label>Session Timeout</label>
+                                <div class="config-value" id="config-session-timeout">-</div>
+                            </div>
+                            <div class="config-item">
+                                <label>Status Check Interval</label>
+                                <div class="config-value" id="config-status-interval">-</div>
+                            </div>
+                            <div class="config-item">
+                                <label>BLE Scan Interval</label>
+                                <div class="config-value" id="config-scan-interval">-</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="activity-log" id="activity-log">
-                    <div class="loading">Loading activity...</div>
+            </div>
+
+            <!-- Activity Log Tab -->
+            <div class="tab-pane" id="activity-pane">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Activity Log</h2>
+                        <button class="btn btn-sm btn-outline" id="btn-clear-log">Clear Log</button>
+                    </div>
+                    <div class="activity-log" id="activity-log">
+                        <div class="loading">Loading activity...</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -93,4 +191,3 @@
     <script src="/static/js/dashboard.js"></script>
 </body>
 </html>
-

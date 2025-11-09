@@ -14,7 +14,7 @@ c4:
 # Gate Behavior Settings
 gate:
   auto_close_timeout: 300        # Auto-close gate after X seconds (5 minutes)
-  session_timeout: 60            # Prevent re-opening within X seconds (1 minute)
+  session_timeout: 120           # Prevent re-opening within X seconds (2 minutes)
   status_check_interval: 30      # Check gate status every X seconds
   ble_scan_interval: 5           # Scan for BLE tokens every X seconds
 

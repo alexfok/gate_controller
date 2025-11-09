@@ -231,11 +231,11 @@ class GateController:
                 self.logger.debug(f"Still in active session ({time_since_session}s)")
                 return
         
+        # Start new session BEFORE opening gate to prevent race condition
+        self.session_start_time = datetime.now()
+        
         # Open the gate
         await self.open_gate(f"Token detected: {name}")
-        
-        # Start new session
-        self.session_start_time = datetime.now()
 
     async def open_gate(self, reason: str = "Manual") -> bool:
         """Open the gate.
