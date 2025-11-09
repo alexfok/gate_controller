@@ -148,12 +148,13 @@ class Config:
         """Get list of registered tokens."""
         return self.config.get('tokens', {}).get('registered', [])
 
-    def add_token(self, uuid: str, name: str) -> bool:
+    def add_token(self, uuid: str, name: str, active: bool = True) -> bool:
         """Add a token to registered list.
         
         Args:
             uuid: Token UUID
             name: User-friendly name
+            active: Whether token is active (default: True)
             
         Returns:
             True if added, False if already exists
@@ -165,14 +166,39 @@ class Config:
             if token.get('uuid') == uuid:
                 return False
         
-        # Add new token
-        tokens.append({'uuid': uuid, 'name': name})
+        # Add new token with active attribute
+        tokens.append({'uuid': uuid, 'name': name, 'active': active})
         
         if 'tokens' not in self.config:
             self.config['tokens'] = {}
         self.config['tokens']['registered'] = tokens
         
         return True
+    
+    def update_token(self, uuid: str, name: str = None, active: bool = None) -> bool:
+        """Update a token's attributes.
+        
+        Args:
+            uuid: Token UUID
+            name: New name (optional)
+            active: New active status (optional)
+            
+        Returns:
+            True if updated, False if not found
+        """
+        tokens = self.registered_tokens
+        
+        for token in tokens:
+            if token.get('uuid') == uuid:
+                if name is not None:
+                    token['name'] = name
+                if active is not None:
+                    token['active'] = active
+                # Update config
+                self.config['tokens']['registered'] = tokens
+                return True
+        
+        return False
 
     def remove_token(self, uuid: str) -> bool:
         """Remove a token from registered list.

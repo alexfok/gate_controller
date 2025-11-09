@@ -90,17 +90,40 @@ class DashboardServer:
             """Register a new token."""
             uuid = data.get("uuid")
             name = data.get("name")
+            active = data.get("active", True)  # Default to True
             
             if not uuid or not name:
                 raise HTTPException(status_code=400, detail="UUID and name required")
             
-            success = self.controller.register_token(uuid, name)
+            success = self.controller.register_token(uuid, name, active)
             if success:
                 self.activity_log.log_token_registered(uuid, name)
-                await self._broadcast_update("token_registered", {"uuid": uuid, "name": name})
+                await self._broadcast_update("token_registered", {"uuid": uuid, "name": name, "active": active})
                 return {"success": True, "message": "Token registered successfully"}
             else:
                 raise HTTPException(status_code=400, detail="Token already registered")
+        
+        @self.app.patch("/api/tokens/{uuid}")
+        async def update_token(uuid: str, data: dict):
+            """Update a token's attributes."""
+            name = data.get("name")
+            active = data.get("active")
+            
+            if name is None and active is None:
+                raise HTTPException(status_code=400, detail="At least one field (name or active) required")
+            
+            success = self.controller.token_manager.update_token(uuid, name=name, active=active)
+            if success:
+                updates = []
+                if name is not None:
+                    updates.append(f"name to '{name}'")
+                if active is not None:
+                    updates.append(f"active to {active}")
+                self.activity_log.add_entry("token_updated", f"Token {uuid} updated: {', '.join(updates)}")
+                await self._broadcast_update("token_updated", {"uuid": uuid, "name": name, "active": active})
+                return {"success": True, "message": "Token updated successfully"}
+            else:
+                raise HTTPException(status_code=404, detail="Token not found")
         
         @self.app.delete("/api/tokens/{uuid}")
         async def unregister_token(uuid: str):
@@ -118,6 +141,27 @@ class DashboardServer:
                 return {"success": True, "message": "Token unregistered successfully"}
             else:
                 raise HTTPException(status_code=400, detail="Failed to unregister token")
+        
+        @self.app.get("/api/scan/all")
+        async def scan_all_devices(duration: int = 10):
+            """Scan for all nearby BLE devices and iBeacons."""
+            try:
+                self.logger.info(f"Starting full BLE scan for {duration}s...")
+                devices = await self.controller.ble_scanner.list_nearby_devices(duration=duration)
+                
+                # Separate iBeacons and regular devices
+                ibeacons = [d for d in devices if d.get('type') == 'iBeacon']
+                regular_devices = [d for d in devices if d.get('type') == 'device']
+                
+                return {
+                    "success": True,
+                    "ibeacons": ibeacons,
+                    "devices": regular_devices,
+                    "total": len(devices)
+                }
+            except Exception as e:
+                self.logger.error(f"Failed to scan devices: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
         
         @self.app.get("/api/config")
         async def get_config():

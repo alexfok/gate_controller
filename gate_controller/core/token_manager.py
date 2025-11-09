@@ -17,12 +17,13 @@ class TokenManager:
         self.config = config
         self.logger = get_logger(__name__)
 
-    def register_token(self, uuid: str, name: str) -> bool:
+    def register_token(self, uuid: str, name: str, active: bool = True) -> bool:
         """Register a new BLE token.
         
         Args:
             uuid: Token UUID (BLE address or identifier)
             name: User-friendly name for the token
+            active: Whether token is active (default: True)
             
         Returns:
             True if registered successfully, False if already exists
@@ -34,13 +35,42 @@ class TokenManager:
             self.logger.warning(f"Token {uuid} is already registered")
             return False
         
-        # Add to config
-        success = self.config.add_token(uuid, name)
+        # Add to config with active status
+        success = self.config.add_token(uuid, name, active)
         
         if success:
             # Save configuration
             self.config.save()
-            self.logger.info(f"Registered token: {name} ({uuid})")
+            self.logger.info(f"Registered token: {name} ({uuid}) [active={active}]")
+        
+        return success
+    
+    def update_token(self, uuid: str, name: str = None, active: bool = None) -> bool:
+        """Update a token's attributes.
+        
+        Args:
+            uuid: Token UUID
+            name: New name (optional)
+            active: New active status (optional)
+            
+        Returns:
+            True if updated successfully, False if not found
+        """
+        uuid = uuid.lower()  # Normalize to lowercase
+        
+        success = self.config.update_token(uuid, name, active)
+        
+        if success:
+            # Save configuration
+            self.config.save()
+            updates = []
+            if name is not None:
+                updates.append(f"name='{name}'")
+            if active is not None:
+                updates.append(f"active={active}")
+            self.logger.info(f"Updated token {uuid}: {', '.join(updates)}")
+        else:
+            self.logger.warning(f"Token {uuid} not found")
         
         return success
 
