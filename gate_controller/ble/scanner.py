@@ -62,7 +62,11 @@ class BLEScanner:
                 if beacon_uuid in self.registered_tokens and beacon_uuid not in detected_uuids:
                     detected_uuids.add(beacon_uuid)
                     token_name = self.registered_tokens[beacon_uuid]
-                    rssi = getattr(device, 'rssi', 0)
+                    rssi = getattr(device, 'rssi', None)
+                    if rssi is None:
+                        rssi = advertisement_data.rssi if hasattr(advertisement_data, 'rssi') else 0
+                        if rssi == 0:
+                            self.logger.warning(f"RSSI not available for {token_name} - BLE adapter may not support RSSI reporting")
                     tx_power = beacon_data.get('tx_power', -59)
                     distance = self._estimate_distance(rssi, tx_power)
                     signal_info = self._format_signal_info(rssi, distance)
@@ -86,7 +90,11 @@ class BLEScanner:
             if device_id in self.registered_tokens and device_id not in detected_uuids:
                 detected_uuids.add(device_id)
                 token_name = self.registered_tokens[device_id]
-                rssi = getattr(device, 'rssi', 0)
+                rssi = getattr(device, 'rssi', None)
+                if rssi is None:
+                    rssi = advertisement_data.rssi if hasattr(advertisement_data, 'rssi') else 0
+                    if rssi == 0:
+                        self.logger.warning(f"RSSI not available for {token_name} - BLE adapter may not support RSSI reporting")
                 distance = self._estimate_distance(rssi)
                 signal_info = self._format_signal_info(rssi, distance)
                 
