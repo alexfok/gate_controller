@@ -135,6 +135,29 @@ class DashboardServer:
                 }
             }
         
+        @self.app.post("/api/config")
+        async def update_config(data: dict):
+            """Update gate behavior configuration."""
+            try:
+                # Update gate configuration
+                if 'auto_close_timeout' in data:
+                    self.config.config['gate']['auto_close_timeout'] = int(data['auto_close_timeout'])
+                if 'session_timeout' in data:
+                    self.config.config['gate']['session_timeout'] = int(data['session_timeout'])
+                if 'status_check_interval' in data:
+                    self.config.config['gate']['status_check_interval'] = int(data['status_check_interval'])
+                if 'ble_scan_interval' in data:
+                    self.config.config['gate']['ble_scan_interval'] = int(data['ble_scan_interval'])
+                
+                # Save configuration to file
+                self.config.save()
+                
+                self.activity_log.add_entry("config_updated", "Configuration updated via dashboard", data)
+                return {"success": True, "message": "Configuration saved. Please restart the service for changes to take effect."}
+            except Exception as e:
+                self.logger.error(f"Failed to update configuration: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
         @self.app.post("/api/gate/open")
         async def open_gate():
             """Manually open the gate."""

@@ -7,6 +7,9 @@ class Dashboard {
         this.detectedTokens = new Map(); // Track detected tokens with timestamps
         this.filteredTokens = [];
         this.config = null;
+        this.isScanning = false;
+        this.isEditingConfig = false;
+        this.refreshIntervals = {};
         this.init();
     }
 
@@ -15,6 +18,7 @@ class Dashboard {
         this.setupWebSocket();
         this.setupEventListeners();
         this.loadInitialData();
+        this.startPeriodicRefresh();
     }
 
     // Tab Management
@@ -189,6 +193,14 @@ class Dashboard {
             this.filterTokens('');
         });
 
+        // Scan controls
+        document.getElementById('btn-start-scan').addEventListener('click', () => this.startScan());
+        document.getElementById('btn-stop-scan').addEventListener('click', () => this.stopScan());
+
+        // Config edit buttons
+        document.getElementById('btn-save-config').addEventListener('click', () => this.saveConfig());
+        document.getElementById('btn-cancel-config').addEventListener('click', () => this.cancelConfigEdit());
+
         // Activity log
         document.getElementById('btn-clear-log').addEventListener('click', () => this.clearLog());
 
@@ -304,17 +316,38 @@ class Dashboard {
             return;
         }
 
-        container.innerHTML = tokens.map(token => `
-            <div class="token-item">
-                <div class="token-info">
-                    <div class="token-name">${this.escapeHtml(token.name)}</div>
-                    <div class="token-uuid">${this.escapeHtml(token.uuid)}</div>
+        container.innerHTML = tokens.map(token => {
+            // Check if token is detected (online)
+            const detected = this.detectedTokens.get(token.uuid);
+            const isOnline = detected && (new Date() - detected.timestamp) < 30000; // 30 seconds
+            const statusClass = isOnline ? 'online' : 'offline';
+            const statusText = isOnline ? '🟢 Online' : '⚪ Offline';
+            
+            let signalInfo = '';
+            if (isOnline && detected) {
+                if (detected.rssi) signalInfo += `RSSI: ${detected.rssi} dBm`;
+                if (detected.distance && detected.distance > 0) {
+                    if (signalInfo) signalInfo += ' | ';
+                    signalInfo += `~${detected.distance}m`;
+                }
+            }
+
+            return `
+                <div class="token-item ${statusClass}">
+                    <div class="token-info">
+                        <div class="token-name">${this.escapeHtml(token.name)}</div>
+                        <div class="token-uuid">${this.escapeHtml(token.uuid)}</div>
+                    </div>
+                    <div class="token-status">
+                        <div class="token-status-badge ${statusClass}">${statusText}</div>
+                        ${signalInfo ? `<div class="token-signal">${signalInfo}</div>` : ''}
+                    </div>
+                    <button class="btn-delete" data-uuid="${this.escapeHtml(token.uuid)}">
+                        🗑️
+                    </button>
                 </div>
-                <button class="btn-delete" data-uuid="${this.escapeHtml(token.uuid)}">
-                    🗑️
-                </button>
-            </div>
-        `).join('');
+            `;
+        }).join('');
 
         // Add delete event listeners
         container.querySelectorAll('.btn-delete').forEach(btn => {
@@ -368,7 +401,7 @@ class Dashboard {
         document.getElementById('config-open-scenario').textContent = config.c4.open_gate_scenario || '-';
         document.getElementById('config-close-scenario').textContent = config.c4.close_gate_scenario || '-';
 
-        // Gate behavior
+        // Gate behavior (display values)
         document.getElementById('config-auto-close').textContent = 
             config.gate.auto_close_timeout ? `${config.gate.auto_close_timeout}s (${Math.floor(config.gate.auto_close_timeout / 60)}m)` : '-';
         document.getElementById('config-session-timeout').textContent = 
@@ -377,6 +410,21 @@ class Dashboard {
             config.gate.status_check_interval ? `${config.gate.status_check_interval}s` : '-';
         document.getElementById('config-scan-interval').textContent = 
             config.gate.ble_scan_interval ? `${config.gate.ble_scan_interval}s` : '-';
+
+        // Set up edit button click handler
+        const editBtn = document.getElementById('btn-edit-config');
+        editBtn.style.display = 'none'; // Hide for now (config editing disabled in this version)
+        
+        // Enable edit mode on double-click of gate behavior card header
+        const gateBehaviorHeader = document.querySelector('#config-pane .card:nth-child(2) .card-header h2');
+        if (gateBehaviorHeader) {
+            gateBehaviorHeader.style.cursor = 'pointer';
+            gateBehaviorHeader.title = 'Double-click to edit';
+            gateBehaviorHeader.ondblclick = () => {
+                this.isEditingConfig = true;
+                this.toggleConfigEdit(true);
+            };
+        }
     }
 
     // Gate Actions
@@ -500,6 +548,100 @@ class Dashboard {
         }, 3000);
     }
 
+    // Scan Controls
+    startScan() {
+        this.isScanning = true;
+        document.getElementById('btn-start-scan').disabled = true;
+        document.getElementById('btn-stop-scan').disabled = false;
+        this.showToast('Manual scan started', 'info');
+    }
+
+    stopScan() {
+        this.isScanning = false;
+        document.getElementById('btn-start-scan').disabled = false;
+        document.getElementById('btn-stop-scan').disabled = true;
+        this.showToast('Manual scan stopped', 'info');
+    }
+
+    // Config Edit/Save
+    async saveConfig() {
+        const config = {
+            auto_close_timeout: parseInt(document.getElementById('input-auto-close').value),
+            session_timeout: parseInt(document.getElementById('input-session-timeout').value),
+            status_check_interval: parseInt(document.getElementById('input-status-interval').value),
+            ble_scan_interval: parseInt(document.getElementById('input-scan-interval').value)
+        };
+
+        try {
+            const response = await fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showToast('Configuration saved successfully. Please restart the service.', 'success');
+                this.isEditingConfig = false;
+                this.toggleConfigEdit(false);
+                await this.loadConfig();
+            } else {
+                this.showToast(data.message || 'Failed to save configuration', 'error');
+            }
+        } catch (error) {
+            this.showToast('Failed to save configuration', 'error');
+        }
+    }
+
+    cancelConfigEdit() {
+        this.isEditingConfig = false;
+        this.toggleConfigEdit(false);
+        this.renderConfig(this.config);
+    }
+
+    toggleConfigEdit(enable) {
+        // Toggle visibility of edit/save buttons
+        document.getElementById('btn-save-config').style.display = enable ? 'inline-flex' : 'none';
+        document.getElementById('btn-cancel-config').style.display = enable ? 'inline-block' : 'none';
+
+        // Toggle visibility of values and inputs
+        const configValues = document.querySelectorAll('.config-value');
+        const configInputs = document.querySelectorAll('.config-input');
+        
+        configValues.forEach(el => el.style.display = enable ? 'none' : 'block');
+        configInputs.forEach(el => el.style.display = enable ? 'block' : 'none');
+
+        if (enable) {
+            // Populate inputs with current values
+            document.getElementById('input-auto-close').value = this.config.gate.auto_close_timeout;
+            document.getElementById('input-session-timeout').value = this.config.gate.session_timeout;
+            document.getElementById('input-status-interval').value = this.config.gate.status_check_interval;
+            document.getElementById('input-scan-interval').value = this.config.gate.ble_scan_interval;
+        }
+    }
+
+    // Periodic Refresh
+    startPeriodicRefresh() {
+        // Refresh token status every 5 seconds
+        this.refreshIntervals.tokens = setInterval(() => {
+            this.loadTokens();
+        }, 5000);
+
+        // Refresh activity log every 10 seconds
+        this.refreshIntervals.activity = setInterval(() => {
+            this.loadActivity();
+        }, 10000);
+
+        // Update detected tokens display every 5 seconds
+        this.refreshIntervals.detected = setInterval(() => {
+            if (this.detectedTokens.size > 0) {
+                this.renderDetectedTokens();
+            }
+        }, 5000);
+    }
+
+    // Utilities
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;

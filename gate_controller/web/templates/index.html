@@ -87,7 +87,17 @@
                     <div class="card card-full">
                         <div class="card-header">
                             <h2>Recently Detected Tokens</h2>
-                            <span class="badge" id="detected-count">0</span>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <button class="btn btn-sm btn-primary" id="btn-start-scan">
+                                    <span class="btn-icon">▶️</span>
+                                    Start Scan
+                                </button>
+                                <button class="btn btn-sm btn-secondary" id="btn-stop-scan" disabled>
+                                    <span class="btn-icon">⏸️</span>
+                                    Stop Scan
+                                </button>
+                                <span class="badge" id="detected-count">0</span>
+                            </div>
                         </div>
                         <div class="detected-token-list" id="detected-token-list">
                             <div class="empty-state">No tokens detected yet</div>
@@ -100,8 +110,14 @@
             <div class="tab-pane" id="config-pane">
                 <div class="grid">
                     <div class="card">
-                        <h2>Control4 Settings</h2>
-                        <div class="config-group">
+                        <div class="card-header">
+                            <h2>Control4 Settings</h2>
+                            <button class="btn btn-sm btn-outline" id="btn-edit-config" style="display: none;">
+                                <span class="btn-icon">✏️</span>
+                                Edit
+                            </button>
+                        </div>
+                        <div class="config-group" id="config-c4-group">
                             <div class="config-item">
                                 <label>Controller IP</label>
                                 <div class="config-value" id="config-c4-ip">-</div>
@@ -122,23 +138,38 @@
                     </div>
 
                     <div class="card">
-                        <h2>Gate Behavior</h2>
-                        <div class="config-group">
+                        <div class="card-header">
+                            <h2>Gate Behavior</h2>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-sm btn-primary" id="btn-save-config" style="display: none;">
+                                    <span class="btn-icon">💾</span>
+                                    Save
+                                </button>
+                                <button class="btn btn-sm btn-outline" id="btn-cancel-config" style="display: none;">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                        <div class="config-group" id="config-gate-group">
                             <div class="config-item">
-                                <label>Auto-Close Timeout</label>
+                                <label>Auto-Close Timeout (seconds)</label>
                                 <div class="config-value" id="config-auto-close">-</div>
+                                <input type="number" class="config-input" id="input-auto-close" style="display:none;" min="60" max="3600">
                             </div>
                             <div class="config-item">
-                                <label>Session Timeout</label>
+                                <label>Session Timeout (seconds)</label>
                                 <div class="config-value" id="config-session-timeout">-</div>
+                                <input type="number" class="config-input" id="input-session-timeout" style="display:none;" min="30" max="600">
                             </div>
                             <div class="config-item">
-                                <label>Status Check Interval</label>
+                                <label>Status Check Interval (seconds)</label>
                                 <div class="config-value" id="config-status-interval">-</div>
+                                <input type="number" class="config-input" id="input-status-interval" style="display:none;" min="10" max="300">
                             </div>
                             <div class="config-item">
-                                <label>BLE Scan Interval</label>
+                                <label>BLE Scan Interval (seconds)</label>
                                 <div class="config-value" id="config-scan-interval">-</div>
+                                <input type="number" class="config-input" id="input-scan-interval" style="display:none;" min="1" max="60">
                             </div>
                         </div>
                     </div>
