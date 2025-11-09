@@ -229,6 +229,11 @@ class GateController:
         if self.dashboard_server:
             await self.dashboard_server.broadcast_token_detected(uuid, name, rssi, distance)
         
+        # Don't open if gate is already open or opening
+        if self.gate_state in [GateState.OPEN, GateState.OPENING]:
+            self.logger.debug(f"Gate is already {self.gate_state.value}, not opening again")
+            return
+        
         # Check if we're in an active session
         if self.session_start_time:
             time_since_session = (datetime.now() - self.session_start_time).total_seconds()
