@@ -252,8 +252,9 @@ class BLEScanner:
         """
         self.logger.info(f"Scanning for all nearby BLE devices and iBeacons for {duration}s...")
         
-        nearby = []
-        beacons = []
+        # Use dictionaries to deduplicate by UUID/address
+        beacons_dict = {}  # Key: UUID, Value: beacon info
+        nearby_dict = {}   # Key: address, Value: device info
         
         def detection_callback(device: BLEDevice, advertisement_data: AdvertisementData):
             """Callback for each detected device."""
@@ -265,32 +266,35 @@ class BLEScanner:
                 distance = self._estimate_distance(rssi, tx_power)
                 signal_info = self._format_signal_info(rssi, distance)
                 
-                beacons.append({
-                    'address': device.address,
-                    'name': device.name or 'iBeacon',
-                    'rssi': rssi,
-                    'distance': distance,
-                    'type': 'iBeacon',
-                    'uuid': beacon_data['uuid'],
-                    'major': beacon_data['major'],
-                    'minor': beacon_data['minor'],
-                    'tx_power': tx_power
-                })
-                self.logger.info(f"Found iBeacon: UUID={beacon_data['uuid']}, Major={beacon_data['major']}, Minor={beacon_data['minor']} | {signal_info}")
+                beacon_uuid = beacon_data['uuid']
+                
+                # Only add/update if not already present or if RSSI is stronger
+                if beacon_uuid not in beacons_dict or rssi > beacons_dict[beacon_uuid]['rssi']:
+                    beacons_dict[beacon_uuid] = {
+                        'address': device.address,
+                        'name': device.name or 'iBeacon',
+                        'rssi': rssi,
+                        'distance': distance,
+                        'type': 'iBeacon',
+                        'uuid': beacon_uuid,
+                        'major': beacon_data['major'],
+                        'minor': beacon_data['minor'],
+                        'tx_power': tx_power
+                    }
+                    self.logger.debug(f"Found iBeacon: UUID={beacon_uuid}, Major={beacon_data['major']}, Minor={beacon_data['minor']} | {signal_info}")
             
-            # Add regular device
-            device_key = f"{device.address}:{device.name}"
-            if device_key not in [f"{d['address']}:{d['name']}" for d in nearby]:
+            # Add regular device (deduplicate by address)
+            if device.address not in nearby_dict:
                 rssi = getattr(device, 'rssi', 0)
                 distance = self._estimate_distance(rssi)
                 
-                nearby.append({
+                nearby_dict[device.address] = {
                     'address': device.address,
                     'name': device.name or 'Unknown',
                     'rssi': rssi,
                     'distance': distance,
                     'type': 'device'
-                })
+                }
         
         try:
             scanner = BleakScanner(detection_callback=detection_callback)
@@ -298,10 +302,14 @@ class BLEScanner:
             await asyncio.sleep(duration)
             await scanner.stop()
             
+            # Convert dictionaries to lists
+            beacons = list(beacons_dict.values())
+            nearby = list(nearby_dict.values())
+            
             # Combine regular devices and beacons
             all_devices = beacons + nearby
             
-            self.logger.info(f"Found {len(all_devices)} BLE devices ({len(beacons)} iBeacons, {len(nearby)} regular devices)")
+            self.logger.info(f"Found {len(all_devices)} unique BLE devices ({len(beacons)} iBeacons, {len(nearby)} regular devices)")
             return all_devices
             
         except Exception as e:

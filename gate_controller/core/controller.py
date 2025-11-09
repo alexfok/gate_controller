@@ -229,6 +229,14 @@ class GateController:
         if self.dashboard_server:
             await self.dashboard_server.broadcast_token_detected(uuid, name, rssi, distance)
         
+        # Check if token is active
+        token_info = self.token_manager.get_token_by_uuid(uuid)
+        if token_info:
+            is_active = token_info.get('active', True)  # Default to True for backward compatibility
+            if not is_active:
+                self.logger.info(f"Token {name} is paused (active=False), not opening gate")
+                return
+        
         # Don't open if gate is already open or opening
         if self.gate_state in [GateState.OPEN, GateState.OPENING]:
             self.logger.debug(f"Gate is already {self.gate_state.value}, not opening again")
