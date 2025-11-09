@@ -358,17 +358,18 @@ class GateController:
         """
         return self.token_manager.get_all_tokens()
 
-    def register_token(self, uuid: str, name: str) -> bool:
+    def register_token(self, uuid: str, name: str, active: bool = True) -> bool:
         """Register a new token.
         
         Args:
             uuid: Token UUID
             name: Token name
+            active: Whether token is active (default: True)
             
         Returns:
             True if successful
         """
-        success = self.token_manager.register_token(uuid, name)
+        success = self.token_manager.register_token(uuid, name, active)
         
         if success:
             # Update scanner with new tokens
