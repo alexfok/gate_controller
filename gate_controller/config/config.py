@@ -5,6 +5,8 @@ import yaml
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
+from ..utils.logger import get_logger
+
 
 class Config:
     """Configuration manager for gate controller."""
@@ -20,6 +22,7 @@ class Config:
         
         self.config_file = config_file
         self.config = self._load_config()
+        self.logger = get_logger(__name__)
 
     def _get_default_config_path(self) -> str:
         """Get default configuration file path."""
@@ -120,6 +123,54 @@ class Config:
     def notification_agent_id(self) -> int:
         """Get notification agent ID."""
         return self.config.get('c4', {}).get('notification_agent_id', 7)
+    
+    @property
+    def director_token(self) -> str:
+        """Get cached director bearer token."""
+        return self.config.get('c4', {}).get('director_token', '')
+    
+    @property
+    def controller_name(self) -> str:
+        """Get cached controller name."""
+        return self.config.get('c4', {}).get('controller_name', '')
+    
+    def save_director_token(self, token: str, controller_name: str):
+        """Save director token to config.
+        
+        Args:
+            token: Director bearer token
+            controller_name: Controller name
+        """
+        if 'c4' not in self.config:
+            self.config['c4'] = {}
+        
+        self.config['c4']['director_token'] = token
+        self.config['c4']['controller_name'] = controller_name
+        self.save()
+        self.logger.info("Director token saved to config")
+    
+    def remove_credentials(self):
+        """Remove username and password from config (token-only mode).
+        
+        Returns:
+            True if credentials were removed, False if not present
+        """
+        if 'c4' not in self.config:
+            return False
+        
+        had_creds = False
+        if 'username' in self.config['c4']:
+            del self.config['c4']['username']
+            had_creds = True
+        if 'password' in self.config['c4']:
+            del self.config['c4']['password']
+            had_creds = True
+        
+        if had_creds:
+            self.save()
+            self.logger.info("Credentials removed from config (token-only mode)")
+        
+        return had_creds
 
     # Gate Configuration
     @property

@@ -3,9 +3,24 @@
 
 # Control4 Configuration
 c4:
-  ip: "192.168.100.30"           # Control4 controller IP address
-  username: "your-email@example.com"  # Control4 account username
-  password: "your-password"      # Control4 account password
+  ip: "192.168.100.30"           # Control4 controller IP address (local gateway)
+  
+  # Authentication (Option 1: Credentials - for auto-refresh)
+  username: "your-email@example.com"  # Control4 account username (optional if token provided)
+  password: "your-password"      # Control4 account password (optional if token provided)
+  
+  # Authentication (Option 2: Token-based - more secure, works offline)
+  # After first authentication, director_token and controller_name are automatically cached
+  # director_token: "eyJhbGc..."  # Cached director bearer token (auto-filled)
+  # controller_name: "control4_..."  # Cached controller name (auto-filled)
+  
+  # To enable token-only mode (no credentials stored):
+  # 1. Start with username/password above
+  # 2. Run: python3 -m gate_controller.cli refresh-token
+  # 3. Run: python3 -m gate_controller.cli remove-credentials
+  # 4. Token will be auto-refreshed on startup (works without internet)
+  
+  # Device Configuration
   gate_device_id: 348            # VBOX-Pro Gateway device ID
   open_gate_scenario: 21         # Scenario number for opening gate
   close_gate_scenario: 22        # Scenario number for closing gate  

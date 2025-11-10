@@ -51,8 +51,13 @@ class GateController:
             gate_device_id=config.gate_device_id,
             open_scenario=config.open_gate_scenario,
             close_scenario=config.close_gate_scenario,
-            notification_agent_id=config.notification_agent_id
+            notification_agent_id=config.notification_agent_id,
+            director_token=config.director_token,
+            controller_name=config.controller_name
         )
+        
+        # Set up token refresh callback to save to config
+        self.c4_client.set_token_refresh_callback(self._on_token_refresh)
         
         self.token_manager = TokenManager(config)
         
@@ -77,6 +82,21 @@ class GateController:
     def active_session(self) -> Optional[datetime]:
         """Get active session start time."""
         return self.session_start_time
+    
+    def _on_token_refresh(self, token: str, controller_name: str):
+        """Callback when C4 director token is refreshed.
+        
+        Args:
+            token: New director bearer token
+            controller_name: Controller name
+        """
+        self.logger.info("Director token refreshed, saving to config...")
+        self.config.save_director_token(token, controller_name)
+        
+        if self.activity_log:
+            self.activity_log.add_entry("c4_auth", "Director token refreshed", {
+                "controller": controller_name
+            })
 
     async def start(self):
         """Start the gate controller."""

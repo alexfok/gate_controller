@@ -194,6 +194,7 @@ class Dashboard {
         // Gate control buttons
         document.getElementById('btn-open-gate').addEventListener('click', () => this.openGate());
         document.getElementById('btn-close-gate').addEventListener('click', () => this.closeGate());
+        document.getElementById('btn-refresh-token').addEventListener('click', () => this.refreshC4Token());
 
         // Token management
         document.getElementById('btn-add-token').addEventListener('click', () => this.showAddTokenModal());
@@ -504,6 +505,32 @@ class Dashboard {
             this.showToast(data.success ? 'Gate closing...' : 'Failed to close gate', data.success ? 'success' : 'error');
         } catch (error) {
             this.showToast('Failed to close gate', 'error');
+        }
+    }
+    
+    async refreshC4Token() {
+        if (!confirm('Refresh Control4 director token from cloud? This requires internet connection.')) {
+            return;
+        }
+        
+        const button = document.getElementById('btn-refresh-token');
+        button.disabled = true;
+        button.textContent = '🔄 Refreshing...';
+        
+        try {
+            const response = await fetch('/api/c4/refresh-token', { method: 'POST' });
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showToast(`Token refreshed successfully (${data.controller})`, 'success');
+            } else {
+                this.showToast(data.message || 'Failed to refresh token', 'error');
+            }
+        } catch (error) {
+            this.showToast('Failed to refresh token: ' + error.message, 'error');
+        } finally {
+            button.disabled = false;
+            button.innerHTML = '<span class="btn-icon">🔄</span> Refresh C4 Token';
         }
     }
 

@@ -51,6 +51,12 @@ def parse_arguments():
     # Check status command
     status_parser = subparsers.add_parser('check-status', help='Check gate status')
     
+    # Refresh token command
+    refresh_token_parser = subparsers.add_parser('refresh-token', help='Refresh C4 director token')
+    
+    # Remove credentials command
+    remove_creds_parser = subparsers.add_parser('remove-credentials', help='Remove username/password from config (token-only mode)')
+    
     return parser.parse_args()
 
 
@@ -243,6 +249,75 @@ async def cmd_check_status(config: Config, args):
         await controller.c4_client.disconnect()
 
 
+async def cmd_refresh_token(config: Config, args):
+    """Refresh C4 director token."""
+    controller = GateController(config)
+    
+    print("\nRefreshing C4 Director Token...")
+    print("="*60)
+    
+    try:
+        # Force full authentication
+        await controller.c4_client.connect()
+        
+        # Token is already saved by the callback
+        print(f"✅ Token refreshed successfully")
+        print(f"✅ Controller: {controller.c4_client.cached_controller_name}")
+        print(f"✅ Token saved to: {config.config_file}")
+        print(f"\nNew token (first 50 chars): {controller.c4_client.cached_director_token[:50]}...")
+        
+    except Exception as e:
+        print(f"❌ Failed to refresh token: {e}")
+        raise
+    finally:
+        await controller.c4_client.disconnect()
+
+
+async def cmd_remove_credentials(config: Config, args):
+    """Remove username and password from config."""
+    print("\n⚠️  Remove Credentials (Token-Only Mode)")
+    print("="*60)
+    
+    if not config.director_token:
+        print("❌ Cannot remove credentials: No director token cached")
+        print("   Run 'refresh-token' first to cache the token")
+        return
+    
+    print(f"Director token is cached: {config.director_token[:50]}...")
+    print(f"Controller: {config.controller_name}")
+    print()
+    
+    # Show current credentials status
+    has_username = bool(config.c4_username)
+    has_password = bool(config.c4_password)
+    
+    if not has_username and not has_password:
+        print("✅ Already in token-only mode (no credentials in config)")
+        return
+    
+    print(f"Current credentials:")
+    print(f"  Username: {'✅ Present' if has_username else '❌ Not found'}")
+    print(f"  Password: {'✅ Present' if has_password else '❌ Not found'}")
+    print()
+    
+    response = input("Remove credentials from config? This enables token-only mode. [y/N]: ")
+    
+    if response.lower() == 'y':
+        removed = config.remove_credentials()
+        if removed:
+            print()
+            print("✅ Credentials removed successfully")
+            print("✅ Token-only mode enabled")
+            print()
+            print("⚠️  If the token expires, you will need to:")
+            print("   1. Manually add credentials back to config.yaml")
+            print("   2. Run 'refresh-token' to get a new token")
+        else:
+            print("⚠️  No credentials found to remove")
+    else:
+        print("Cancelled - credentials kept in config")
+
+
 async def main():
     """Main CLI function."""
     args = parse_arguments()
@@ -264,6 +339,8 @@ async def main():
         'open-gate': cmd_open_gate,
         'close-gate': cmd_close_gate,
         'check-status': cmd_check_status,
+        'refresh-token': cmd_refresh_token,
+        'remove-credentials': cmd_remove_credentials,
     }
     
     handler = commands.get(args.command)

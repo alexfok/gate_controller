@@ -261,6 +261,28 @@ class DashboardServer:
                 self.logger.error(f"Failed to restart service: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
         
+        @self.app.post("/api/c4/refresh-token")
+        async def refresh_c4_token():
+            """Refresh C4 director token from cloud."""
+            try:
+                self.logger.info("Token refresh requested via dashboard...")
+                
+                # Call refresh_token which will trigger the callback to save
+                token_info = await self.controller.c4_client.refresh_token()
+                
+                self.activity_log.add_entry("c4_auth", "Director token refreshed via dashboard", {
+                    "controller": token_info["controller_name"]
+                })
+                
+                return {
+                    "success": True,
+                    "message": "Token refreshed successfully",
+                    "controller": token_info["controller_name"]
+                }
+            except Exception as e:
+                self.logger.error(f"Failed to refresh token: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
         @self.app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
             """WebSocket endpoint for real-time updates."""
