@@ -130,11 +130,18 @@ rsync -avz --delete \
 
 print_success "Application files copied"
 
-# Copy configuration file
-print_step "Copying configuration file..."
+# Copy configuration file (only if it doesn't exist)
+print_step "Checking configuration file..."
 ssh "${RPI_USER}@${RPI_HOST}" "mkdir -p ${RPI_DEPLOY_DIR}/config"
-scp "$LOCAL_CONFIG" "${RPI_USER}@${RPI_HOST}:${RPI_DEPLOY_DIR}/config/config.yaml"
-print_success "Configuration file copied"
+
+# Check if config.yaml already exists on RPI
+if ssh "${RPI_USER}@${RPI_HOST}" "test -f ${RPI_DEPLOY_DIR}/config/config.yaml"; then
+    print_success "Configuration file already exists on RPI (preserving user settings)"
+else
+    print_step "Copying initial configuration file..."
+    scp "$LOCAL_CONFIG" "${RPI_USER}@${RPI_HOST}:${RPI_DEPLOY_DIR}/config/config.yaml"
+    print_success "Configuration file copied"
+fi
 
 # Create logs directory
 print_step "Creating logs directory..."
