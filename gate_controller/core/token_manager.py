@@ -5,6 +5,18 @@ from ..config.config import Config
 from ..utils.logger import get_logger
 
 
+def normalize_uuid(uuid: str) -> str:
+    """Normalize UUID by converting to lowercase and removing dashes.
+    
+    Args:
+        uuid: UUID string (with or without dashes)
+        
+    Returns:
+        Normalized UUID (lowercase, no dashes)
+    """
+    return uuid.lower().replace('-', '')
+
+
 class TokenManager:
     """Manager for BLE token registration and storage."""
 
@@ -108,15 +120,16 @@ class TokenManager:
         """Get token information by UUID.
         
         Args:
-            uuid: Token UUID
+            uuid: Token UUID (with or without dashes)
             
         Returns:
             Token dict with 'uuid' and 'name', or None if not found
         """
-        uuid = uuid.lower()  # Normalize to lowercase
+        uuid_normalized = normalize_uuid(uuid)  # Normalize: lowercase, no dashes
         
         for token in self.config.registered_tokens:
-            if token.get('uuid', '').lower() == uuid:
+            token_uuid_normalized = normalize_uuid(token.get('uuid', ''))
+            if token_uuid_normalized == uuid_normalized:
                 return token
         
         return None

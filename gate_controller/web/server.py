@@ -296,7 +296,7 @@ class DashboardServer:
                 raise HTTPException(status_code=500, detail=str(e))
         
         @self.app.post("/api/token/detected")
-        async def token_detected_post(data: dict):
+        async def token_detected_post(request: Request):
             """Handle token detection from external BLE scanner via POST.
             
             Supports two formats:
@@ -315,31 +315,61 @@ class DashboardServer:
                 {"type": 32, "dmac": "...", "data1": "...", "rssi": -50}
             ]
             """
+            # Read raw body
             try:
+                body_bytes = await request.body()
+                body_str = body_bytes.decode('utf-8')
+                
+                # DEBUG: Log raw request
+                self.logger.info("="*80)
+                self.logger.info("BCG04 DEBUG: Raw HTTP POST body:")
+                self.logger.info(f"Content-Type: {request.headers.get('content-type')}")
+                self.logger.info(f"Content-Length: {request.headers.get('content-length')}")
+                self.logger.info(f"Body length: {len(body_bytes)} bytes")
+                self.logger.info(f"Body (first 500 chars):\n{body_str[:500]}")
+                self.logger.info(f"Body (last 200 chars):\n{body_str[-200:]}")
+                self.logger.info("="*80)
+                
+                # Try to parse JSON
+                try:
+                    data = json.loads(body_str)
+                    self.logger.info(f"BCG04 DEBUG: JSON parsed successfully, type: {type(data)}")
+                except json.JSONDecodeError as e:
+                    self.logger.error(f"BCG04 DEBUG: JSON parse error: {e}")
+                    self.logger.error(f"BCG04 DEBUG: Error at position {e.pos}: ...{body_str[max(0,e.pos-50):e.pos+50]}...")
+                    return {"success": False, "message": f"JSON parse error: {str(e)}", "error": str(e)}
+                
                 # Check format type
                 if isinstance(data, list):
                     # Direct array format - process all iBeacons
-                    return await _process_bcg04_batch(data)
+                    result = await _process_bcg04_batch(data)
+                    self.logger.info(f"BCG04 DEBUG: Processing result: {result}")
+                    return result
                 elif isinstance(data, dict):
                     # Check if it's BCG04 wrapped format: {"msg": "advData", "gmac": "...", "obj": [...]}
                     if 'obj' in data and isinstance(data['obj'], list):
                         # BCG04 wrapped batch format
-                        self.logger.info(f"BCG04 gateway: {data.get('gmac', 'unknown')}")
-                        return await _process_bcg04_batch(data['obj'])
+                        self.logger.info(f"BCG04 gateway: {data.get('gmac', 'unknown')}, msg: {data.get('msg', 'unknown')}")
+                        result = await _process_bcg04_batch(data['obj'])
+                        self.logger.info(f"BCG04 DEBUG: Processing result: {result}")
+                        return result
                     else:
                         # Single token format
                         uuid = data.get('uuid')
                         name = data.get('name')
                         rssi = data.get('rssi')
                         distance = data.get('distance')
-                        return await _process_token_detection(uuid, name, rssi, distance)
+                        result = await _process_token_detection(uuid, name, rssi, distance)
+                        self.logger.info(f"BCG04 DEBUG: Processing result: {result}")
+                        return result
                 else:
-                    raise HTTPException(status_code=400, detail="Invalid data format")
-            except HTTPException:
-                raise
+                    self.logger.warning(f"BCG04 DEBUG: Invalid data format - returning 200 anyway")
+                    return {"success": True, "message": "Debug mode: data received but not processed"}
             except Exception as e:
-                self.logger.error(f"Failed to process token detection (POST): {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                # DEBUG: Always return 200 OK even on error
+                self.logger.error(f"BCG04 DEBUG: Error processing: {e}")
+                self.logger.exception("Full traceback:")
+                return {"success": False, "message": f"Debug mode: error caught: {str(e)}", "error": str(e)}
         
         async def _process_bcg04_batch(scan_results: list):
             """Process BCG04 batch scan results.
@@ -358,6 +388,7 @@ class DashboardServer:
             processed_count = 0
             ignored_count = 0
             ibeacon_count = 0
+            detected_uuids = []
             
             for device in scan_results:
                 # Only process iBeacons (type 4)
@@ -367,6 +398,7 @@ class DashboardServer:
                 ibeacon_count += 1
                 uuid = device.get('uuid', '').lower()
                 rssi = device.get('rssi')
+                detected_uuids.append(f"{uuid} (RSSI: {rssi})")
                 
                 if not uuid:
                     continue
@@ -374,6 +406,7 @@ class DashboardServer:
                 # Check if registered and active
                 token_info = self.controller.token_manager.get_token_by_uuid(uuid)
                 if not token_info:
+                    self.logger.info(f"BCG04: iBeacon {uuid} NOT REGISTERED (ignored)")
                     ignored_count += 1
                     continue
                 
@@ -390,6 +423,8 @@ class DashboardServer:
                 processed_count += 1
             
             self.logger.info(f"BCG04 batch complete: {ibeacon_count} iBeacons, {processed_count} processed, {ignored_count} ignored")
+            if detected_uuids:
+                self.logger.info(f"BCG04 detected iBeacons: {', '.join(detected_uuids)}")
             
             return {
                 "success": True,
@@ -397,7 +432,8 @@ class DashboardServer:
                 "total_devices": len(scan_results),
                 "ibeacons": ibeacon_count,
                 "processed": processed_count,
-                "ignored": ignored_count
+                "ignored": ignored_count,
+                "detected_uuids": detected_uuids
             }
         
         @self.app.get("/api/activity")
