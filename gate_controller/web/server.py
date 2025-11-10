@@ -36,7 +36,7 @@ class DashboardServer:
         self.config = config
         self.controller = controller
         self.activity_log = activity_log
-        self.logger = get_logger(__name__)
+        self.logger = get_logger(__name__, config.log_level, config.log_file)
         
         # Create FastAPI app
         self.app = FastAPI(title="Gate Controller Dashboard")
