@@ -297,28 +297,100 @@ class DashboardServer:
         
         @self.app.post("/api/token/detected")
         async def token_detected_post(data: dict):
-            """Handle token detection from external BLE scanner via POST (e.g., BCG04).
+            """Handle token detection from external BLE scanner via POST.
             
-            JSON payload:
+            Supports two formats:
+            
+            1. Single token (simple format):
             {
-                "uuid": "426c7565-4368-6172-6d42-6561636f6e67",  // Required
-                "name": "BCPro_Alex",  // Optional (will lookup from config)
-                "rssi": -45,  // Optional signal strength in dBm
-                "distance": 0.5  // Optional estimated distance in meters
+                "uuid": "426c7565-4368-6172-6d42-6561636f6e67",
+                "name": "BCPro_Alex",  // Optional
+                "rssi": -45,  // Optional
+                "distance": 0.5  // Optional
             }
+            
+            2. BCG04 batch format (array of scan results):
+            [
+                {"type": 4, "uuid": "...", "rssi": -45, "time": "..."},
+                {"type": 32, "dmac": "...", "data1": "...", "rssi": -50}
+            ]
             """
             try:
-                uuid = data.get('uuid')
-                name = data.get('name')
-                rssi = data.get('rssi')
-                distance = data.get('distance')
-                
-                return await _process_token_detection(uuid, name, rssi, distance)
+                # Check if it's a batch scan (array) or single token (dict with uuid)
+                if isinstance(data, list):
+                    # BCG04 batch format - process all iBeacons
+                    return await _process_bcg04_batch(data)
+                else:
+                    # Single token format
+                    uuid = data.get('uuid')
+                    name = data.get('name')
+                    rssi = data.get('rssi')
+                    distance = data.get('distance')
+                    return await _process_token_detection(uuid, name, rssi, distance)
             except HTTPException:
                 raise
             except Exception as e:
                 self.logger.error(f"Failed to process token detection (POST): {e}")
                 raise HTTPException(status_code=500, detail=str(e))
+        
+        async def _process_bcg04_batch(scan_results: list):
+            """Process BCG04 batch scan results.
+            
+            BCG04 sends an array of all detected devices:
+            [
+                {"type": 4, "dmac": "...", "uuid": "...", "majorID": 1, "minorID": 0, "refpower": -55, "rssi": -45, "time": "..."},
+                {"type": 32, "dmac": "...", "data1": "...", "rssi": -50, "time": "..."}
+            ]
+            
+            type: 4 = iBeacon (has UUID)
+            type: 32 = regular BLE device (no UUID)
+            """
+            self.logger.info(f"BCG04 batch: Received {len(scan_results)} scan results")
+            
+            processed_count = 0
+            ignored_count = 0
+            ibeacon_count = 0
+            
+            for device in scan_results:
+                # Only process iBeacons (type 4)
+                if device.get('type') != 4:
+                    continue
+                
+                ibeacon_count += 1
+                uuid = device.get('uuid', '').lower()
+                rssi = device.get('rssi')
+                
+                if not uuid:
+                    continue
+                
+                # Check if registered and active
+                token_info = self.controller.token_manager.get_token_by_uuid(uuid)
+                if not token_info:
+                    ignored_count += 1
+                    continue
+                
+                is_active = token_info.get('active', True)
+                if not is_active:
+                    self.logger.debug(f"BCG04 batch: Token {token_info.get('name')} is paused")
+                    ignored_count += 1
+                    continue
+                
+                # Process registered, active token
+                name = token_info.get('name', 'Unknown')
+                self.logger.info(f"BCG04 batch: Processing token {name} ({uuid}) | RSSI: {rssi}")
+                await self.controller._handle_token_detected(uuid, name, rssi, None)
+                processed_count += 1
+            
+            self.logger.info(f"BCG04 batch complete: {ibeacon_count} iBeacons, {processed_count} processed, {ignored_count} ignored")
+            
+            return {
+                "success": True,
+                "message": "Batch processed",
+                "total_devices": len(scan_results),
+                "ibeacons": ibeacon_count,
+                "processed": processed_count,
+                "ignored": ignored_count
+            }
         
         @self.app.get("/api/activity")
         async def get_activity(limit: int = 50, event_type: Optional[str] = None):
