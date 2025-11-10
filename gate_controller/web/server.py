@@ -316,17 +316,25 @@ class DashboardServer:
             ]
             """
             try:
-                # Check if it's a batch scan (array) or single token (dict with uuid)
+                # Check format type
                 if isinstance(data, list):
-                    # BCG04 batch format - process all iBeacons
+                    # Direct array format - process all iBeacons
                     return await _process_bcg04_batch(data)
+                elif isinstance(data, dict):
+                    # Check if it's BCG04 wrapped format: {"msg": "advData", "gmac": "...", "obj": [...]}
+                    if 'obj' in data and isinstance(data['obj'], list):
+                        # BCG04 wrapped batch format
+                        self.logger.info(f"BCG04 gateway: {data.get('gmac', 'unknown')}")
+                        return await _process_bcg04_batch(data['obj'])
+                    else:
+                        # Single token format
+                        uuid = data.get('uuid')
+                        name = data.get('name')
+                        rssi = data.get('rssi')
+                        distance = data.get('distance')
+                        return await _process_token_detection(uuid, name, rssi, distance)
                 else:
-                    # Single token format
-                    uuid = data.get('uuid')
-                    name = data.get('name')
-                    rssi = data.get('rssi')
-                    distance = data.get('distance')
-                    return await _process_token_detection(uuid, name, rssi, distance)
+                    raise HTTPException(status_code=400, detail="Invalid data format")
             except HTTPException:
                 raise
             except Exception as e:
