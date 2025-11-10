@@ -228,6 +228,98 @@ class DashboardServer:
                 self.logger.error(f"Failed to close gate: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
         
+        async def _process_token_detection(uuid: str, name: str = None, rssi: int = None, distance: float = None):
+            """Internal handler for token detection (shared by GET and POST)."""
+            # Validate UUID
+            if not uuid:
+                raise HTTPException(status_code=400, detail="Token UUID is required")
+            
+            uuid = uuid.lower()
+            
+            # Check if token is registered
+            token_info = self.controller.token_manager.get_token_by_uuid(uuid)
+            if not token_info:
+                self.logger.warning(f"Token detection ignored: {uuid} not registered")
+                return {
+                    "success": False,
+                    "message": "Token not registered",
+                    "action": "ignored"
+                }
+            
+            name = name or token_info.get('name', 'Unknown')
+            
+            # Check if token is active
+            is_active = token_info.get('active', True)
+            if not is_active:
+                self.logger.info(f"Token detection ignored: {name} is paused (active=False)")
+                return {
+                    "success": False,
+                    "message": "Token is paused",
+                    "action": "ignored"
+                }
+            
+            # Call the same handler as BLE scanner
+            self.logger.info(f"External token detected via API: {name} ({uuid})")
+            await self.controller._handle_token_detected(uuid, name, rssi, distance)
+            
+            return {
+                "success": True,
+                "message": "Token detected and processed",
+                "token": name,
+                "action": "processed"
+            }
+        
+        @self.app.get("/api/token/detected")
+        async def token_detected_get(
+            uuid: str,
+            name: Optional[str] = None,
+            rssi: Optional[int] = None,
+            distance: Optional[float] = None
+        ):
+            """Handle token detection from external BLE scanner via GET (e.g., BCG04).
+            
+            Query parameters:
+            - uuid: Token UUID (required) - e.g., 426c7565-4368-6172-6d42-6561636f6e67
+            - name: Token name (optional) - e.g., BCPro_Alex
+            - rssi: Signal strength in dBm (optional) - e.g., -45
+            - distance: Estimated distance in meters (optional) - e.g., 0.5
+            
+            Example:
+            GET /api/token/detected?uuid=426c7565-4368-6172-6d42-6561636f6e67&rssi=-45
+            """
+            try:
+                return await _process_token_detection(uuid, name, rssi, distance)
+            except HTTPException:
+                raise
+            except Exception as e:
+                self.logger.error(f"Failed to process token detection (GET): {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.post("/api/token/detected")
+        async def token_detected_post(data: dict):
+            """Handle token detection from external BLE scanner via POST (e.g., BCG04).
+            
+            JSON payload:
+            {
+                "uuid": "426c7565-4368-6172-6d42-6561636f6e67",  // Required
+                "name": "BCPro_Alex",  // Optional (will lookup from config)
+                "rssi": -45,  // Optional signal strength in dBm
+                "distance": 0.5  // Optional estimated distance in meters
+            }
+            """
+            try:
+                uuid = data.get('uuid')
+                name = data.get('name')
+                rssi = data.get('rssi')
+                distance = data.get('distance')
+                
+                return await _process_token_detection(uuid, name, rssi, distance)
+            except HTTPException:
+                raise
+            except Exception as e:
+                self.logger.error(f"Failed to process token detection (POST): {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
         @self.app.get("/api/activity")
         async def get_activity(limit: int = 50, event_type: Optional[str] = None):
             """Get activity log entries."""
