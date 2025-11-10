@@ -28,6 +28,7 @@ class BLEScanner:
         
         self._scanning = False
         self._detected_tokens: Set[str] = set()
+        self._scan_lock = asyncio.Lock()  # Prevent concurrent scans
 
     def update_registered_tokens(self, tokens: List[Dict[str, str]]):
         """Update the list of registered tokens.
@@ -50,81 +51,83 @@ class BLEScanner:
         """
         self.logger.debug(f"Starting BLE scan for {duration}s...")
         
-        detected = []
-        detected_uuids = set()
-        
-        def detection_callback(device: BLEDevice, advertisement_data: AdvertisementData):
-            """Callback for each detected device."""
-            # Check if it's an iBeacon with registered UUID
-            beacon_data = self._parse_ibeacon(advertisement_data)
-            if beacon_data:
-                beacon_uuid = beacon_data['uuid'].lower()
-                if beacon_uuid in self.registered_tokens and beacon_uuid not in detected_uuids:
-                    detected_uuids.add(beacon_uuid)
-                    token_name = self.registered_tokens[beacon_uuid]
+        # Acquire lock to prevent concurrent scans
+        async with self._scan_lock:
+            detected = []
+            detected_uuids = set()
+            
+            def detection_callback(device: BLEDevice, advertisement_data: AdvertisementData):
+                """Callback for each detected device."""
+                # Check if it's an iBeacon with registered UUID
+                beacon_data = self._parse_ibeacon(advertisement_data)
+                if beacon_data:
+                    beacon_uuid = beacon_data['uuid'].lower()
+                    if beacon_uuid in self.registered_tokens and beacon_uuid not in detected_uuids:
+                        detected_uuids.add(beacon_uuid)
+                        token_name = self.registered_tokens[beacon_uuid]
+                        rssi = getattr(device, 'rssi', None)
+                        if rssi is None:
+                            rssi = advertisement_data.rssi if hasattr(advertisement_data, 'rssi') else 0
+                            if rssi == 0:
+                                self.logger.warning(f"RSSI not available for {token_name} - BLE adapter may not support RSSI reporting")
+                        tx_power = beacon_data.get('tx_power', -59)
+                        distance = self._estimate_distance(rssi, tx_power)
+                        signal_info = self._format_signal_info(rssi, distance)
+                        
+                        detected.append({
+                            'uuid': beacon_uuid,
+                            'name': token_name,
+                            'address': device.address,
+                            'rssi': rssi,
+                            'distance': distance,
+                            'tx_power': tx_power
+                        })
+                        self.logger.info(f"Detected iBeacon: {token_name} | {signal_info}")
+                        
+                        # Call callback if provided
+                        if self.on_token_detected:
+                            self.on_token_detected(beacon_uuid, token_name)
+                
+                # Also check regular device address/name
+                device_id = self._get_device_identifier(device)
+                if device_id in self.registered_tokens and device_id not in detected_uuids:
+                    detected_uuids.add(device_id)
+                    token_name = self.registered_tokens[device_id]
                     rssi = getattr(device, 'rssi', None)
                     if rssi is None:
                         rssi = advertisement_data.rssi if hasattr(advertisement_data, 'rssi') else 0
                         if rssi == 0:
                             self.logger.warning(f"RSSI not available for {token_name} - BLE adapter may not support RSSI reporting")
-                    tx_power = beacon_data.get('tx_power', -59)
-                    distance = self._estimate_distance(rssi, tx_power)
+                    distance = self._estimate_distance(rssi)
                     signal_info = self._format_signal_info(rssi, distance)
                     
                     detected.append({
-                        'uuid': beacon_uuid,
+                        'uuid': device_id,
                         'name': token_name,
                         'address': device.address,
                         'rssi': rssi,
-                        'distance': distance,
-                        'tx_power': tx_power
+                        'distance': distance
                     })
-                    self.logger.info(f"Detected iBeacon: {token_name} | {signal_info}")
+                    self.logger.info(f"Detected token: {token_name} | {signal_info}")
                     
                     # Call callback if provided
                     if self.on_token_detected:
-                        self.on_token_detected(beacon_uuid, token_name)
+                        self.on_token_detected(device_id, token_name)
             
-            # Also check regular device address/name
-            device_id = self._get_device_identifier(device)
-            if device_id in self.registered_tokens and device_id not in detected_uuids:
-                detected_uuids.add(device_id)
-                token_name = self.registered_tokens[device_id]
-                rssi = getattr(device, 'rssi', None)
-                if rssi is None:
-                    rssi = advertisement_data.rssi if hasattr(advertisement_data, 'rssi') else 0
-                    if rssi == 0:
-                        self.logger.warning(f"RSSI not available for {token_name} - BLE adapter may not support RSSI reporting")
-                distance = self._estimate_distance(rssi)
-                signal_info = self._format_signal_info(rssi, distance)
+            try:
+                scanner = BleakScanner(detection_callback=detection_callback)
+                await scanner.start()
+                await asyncio.sleep(duration)
+                await scanner.stop()
                 
-                detected.append({
-                    'uuid': device_id,
-                    'name': token_name,
-                    'address': device.address,
-                    'rssi': rssi,
-                    'distance': distance
-                })
-                self.logger.info(f"Detected token: {token_name} | {signal_info}")
+                if not detected:
+                    self.logger.debug(f"No registered tokens detected in scan")
                 
-                # Call callback if provided
-                if self.on_token_detected:
-                    self.on_token_detected(device_id, token_name)
-        
-        try:
-            scanner = BleakScanner(detection_callback=detection_callback)
-            await scanner.start()
-            await asyncio.sleep(duration)
-            await scanner.stop()
-            
-            if not detected:
-                self.logger.debug(f"No registered tokens detected in scan")
-            
-            return detected
-            
-        except Exception as e:
-            self.logger.error(f"BLE scan error: {e}")
-            return []
+                return detected
+                
+            except Exception as e:
+                self.logger.error(f"BLE scan error: {e}")
+                return []
 
     async def start_continuous_scan(self, interval: float = 5.0):
         """Start continuous BLE scanning.
@@ -252,69 +255,71 @@ class BLEScanner:
         """
         self.logger.info(f"Scanning for all nearby BLE devices and iBeacons for {duration}s...")
         
-        # Use dictionaries to deduplicate by UUID/address
-        beacons_dict = {}  # Key: UUID, Value: beacon info
-        nearby_dict = {}   # Key: address, Value: device info
-        
-        def detection_callback(device: BLEDevice, advertisement_data: AdvertisementData):
-            """Callback for each detected device."""
-            # Check if it's an iBeacon
-            beacon_data = self._parse_ibeacon(advertisement_data)
-            if beacon_data:
-                rssi = getattr(device, 'rssi', 0)
-                tx_power = beacon_data.get('tx_power', -59)
-                distance = self._estimate_distance(rssi, tx_power)
-                signal_info = self._format_signal_info(rssi, distance)
+        # Acquire lock to prevent concurrent scans
+        async with self._scan_lock:
+            # Use dictionaries to deduplicate by UUID/address
+            beacons_dict = {}  # Key: UUID, Value: beacon info
+            nearby_dict = {}   # Key: address, Value: device info
+            
+            def detection_callback(device: BLEDevice, advertisement_data: AdvertisementData):
+                """Callback for each detected device."""
+                # Check if it's an iBeacon
+                beacon_data = self._parse_ibeacon(advertisement_data)
+                if beacon_data:
+                    rssi = getattr(device, 'rssi', 0)
+                    tx_power = beacon_data.get('tx_power', -59)
+                    distance = self._estimate_distance(rssi, tx_power)
+                    signal_info = self._format_signal_info(rssi, distance)
+                    
+                    beacon_uuid = beacon_data['uuid']
+                    
+                    # Only add/update if not already present or if RSSI is stronger
+                    if beacon_uuid not in beacons_dict or rssi > beacons_dict[beacon_uuid]['rssi']:
+                        beacons_dict[beacon_uuid] = {
+                            'address': device.address,
+                            'name': device.name or 'iBeacon',
+                            'rssi': rssi,
+                            'distance': distance,
+                            'type': 'iBeacon',
+                            'uuid': beacon_uuid,
+                            'major': beacon_data['major'],
+                            'minor': beacon_data['minor'],
+                            'tx_power': tx_power
+                        }
+                        self.logger.debug(f"Found iBeacon: UUID={beacon_uuid}, Major={beacon_data['major']}, Minor={beacon_data['minor']} | {signal_info}")
                 
-                beacon_uuid = beacon_data['uuid']
-                
-                # Only add/update if not already present or if RSSI is stronger
-                if beacon_uuid not in beacons_dict or rssi > beacons_dict[beacon_uuid]['rssi']:
-                    beacons_dict[beacon_uuid] = {
+                # Add regular device (deduplicate by address)
+                if device.address not in nearby_dict:
+                    rssi = getattr(device, 'rssi', 0)
+                    distance = self._estimate_distance(rssi)
+                    
+                    nearby_dict[device.address] = {
                         'address': device.address,
-                        'name': device.name or 'iBeacon',
+                        'name': device.name or 'Unknown',
                         'rssi': rssi,
                         'distance': distance,
-                        'type': 'iBeacon',
-                        'uuid': beacon_uuid,
-                        'major': beacon_data['major'],
-                        'minor': beacon_data['minor'],
-                        'tx_power': tx_power
+                        'type': 'device'
                     }
-                    self.logger.debug(f"Found iBeacon: UUID={beacon_uuid}, Major={beacon_data['major']}, Minor={beacon_data['minor']} | {signal_info}")
             
-            # Add regular device (deduplicate by address)
-            if device.address not in nearby_dict:
-                rssi = getattr(device, 'rssi', 0)
-                distance = self._estimate_distance(rssi)
+            try:
+                scanner = BleakScanner(detection_callback=detection_callback)
+                await scanner.start()
+                await asyncio.sleep(duration)
+                await scanner.stop()
                 
-                nearby_dict[device.address] = {
-                    'address': device.address,
-                    'name': device.name or 'Unknown',
-                    'rssi': rssi,
-                    'distance': distance,
-                    'type': 'device'
-                }
-        
-        try:
-            scanner = BleakScanner(detection_callback=detection_callback)
-            await scanner.start()
-            await asyncio.sleep(duration)
-            await scanner.stop()
-            
-            # Convert dictionaries to lists
-            beacons = list(beacons_dict.values())
-            nearby = list(nearby_dict.values())
-            
-            # Combine regular devices and beacons
-            all_devices = beacons + nearby
-            
-            self.logger.info(f"Found {len(all_devices)} unique BLE devices ({len(beacons)} iBeacons, {len(nearby)} regular devices)")
-            return all_devices
-            
-        except Exception as e:
-            self.logger.error(f"Error listing nearby devices: {e}")
-            return []
+                # Convert dictionaries to lists
+                beacons = list(beacons_dict.values())
+                nearby = list(nearby_dict.values())
+                
+                # Combine regular devices and beacons
+                all_devices = beacons + nearby
+                
+                self.logger.info(f"Found {len(all_devices)} unique BLE devices ({len(beacons)} iBeacons, {len(nearby)} regular devices)")
+                return all_devices
+                
+            except Exception as e:
+                self.logger.error(f"Error listing nearby devices: {e}")
+                return []
 
     def _parse_ibeacon(self, advertisement_data: AdvertisementData) -> Optional[Dict]:
         """Parse iBeacon data from advertisement.
