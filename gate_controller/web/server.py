@@ -347,14 +347,21 @@ class DashboardServer:
                     return result
                 elif isinstance(data, dict):
                     # Check if it's BCG04 wrapped format: {"msg": "advData", "gmac": "...", "obj": [...]}
-                    if 'obj' in data and isinstance(data['obj'], list):
-                        # BCG04 wrapped batch format
+                    # BCG04 always sends 'msg' and 'gmac' fields
+                    if 'msg' in data and 'gmac' in data:
+                        # This is BCG04 format
                         self.logger.info(f"BCG04 gateway: {data.get('gmac', 'unknown')}, msg: {data.get('msg', 'unknown')}")
-                        result = await _process_bcg04_batch(data['obj'])
+                        
+                        # Get obj array (might be empty or missing if all tokens filtered)
+                        obj = data.get('obj', [])
+                        if not isinstance(obj, list):
+                            obj = []
+                        
+                        result = await _process_bcg04_batch(obj)
                         self.logger.info(f"BCG04 DEBUG: Processing result: {result}")
                         return result
-                    else:
-                        # Single token format
+                    elif 'uuid' in data:
+                        # Single token format (manual API call)
                         uuid = data.get('uuid')
                         name = data.get('name')
                         rssi = data.get('rssi')
@@ -362,6 +369,11 @@ class DashboardServer:
                         result = await _process_token_detection(uuid, name, rssi, distance)
                         self.logger.info(f"BCG04 DEBUG: Processing result: {result}")
                         return result
+                    else:
+                        # Unknown dict format - accept it anyway
+                        self.logger.warning(f"BCG04 DEBUG: Unknown dict format (no msg/gmac or uuid) - accepting anyway")
+                        self.logger.warning(f"BCG04 DEBUG: Dict keys: {list(data.keys())}")
+                        return {"success": True, "message": "Data received but format unknown"}
                 else:
                     self.logger.warning(f"BCG04 DEBUG: Invalid data format - returning 200 anyway")
                     return {"success": True, "message": "Debug mode: data received but not processed"}
@@ -384,6 +396,19 @@ class DashboardServer:
             type: 32 = regular BLE device (no UUID)
             """
             self.logger.info(f"BCG04 batch: Received {len(scan_results)} scan results")
+            
+            # Handle empty batch (all tokens filtered out)
+            if len(scan_results) == 0:
+                self.logger.info("BCG04 batch: Empty (all tokens filtered)")
+                return {
+                    "success": True,
+                    "message": "Empty batch (all tokens filtered)",
+                    "total_devices": 0,
+                    "ibeacons": 0,
+                    "processed": 0,
+                    "ignored": 0,
+                    "detected_uuids": []
+                }
             
             processed_count = 0
             ignored_count = 0
