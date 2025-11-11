@@ -230,6 +230,7 @@ class Dashboard {
 
         // Activity log
         document.getElementById('btn-clear-log').addEventListener('click', () => this.clearLog());
+        document.getElementById('activity-mode-toggle').addEventListener('change', (e) => this.toggleActivityMode(e.target.checked));
 
         // Close modals on outside click
         document.getElementById('add-token-modal').addEventListener('click', (e) => {
@@ -254,7 +255,8 @@ class Dashboard {
         await Promise.all([
             this.loadStatus(),
             this.loadTokens(),
-            this.loadActivity()
+            this.loadActivity(),
+            this.loadActivityMode()
         ]);
     }
 
@@ -445,9 +447,14 @@ class Dashboard {
             const time = new Date(activity.timestamp).toLocaleString();
             const typeClass = activity.type.replace('_', '-');
             
+            // Show update indicator for suppressed entries
+            const updateIndicator = activity.update_count > 0 
+                ? `<span class="update-badge" title="Updated ${activity.update_count} time(s)">🔄 ${activity.update_count}</span>` 
+                : '';
+            
             return `
                 <div class="activity-item activity-${typeClass}">
-                    <div class="activity-time">${time}</div>
+                    <div class="activity-time">${time} ${updateIndicator}</div>
                     <div class="activity-message">${this.escapeHtml(activity.message)}</div>
                 </div>
             `;
@@ -613,6 +620,61 @@ class Dashboard {
             }
         } catch (error) {
             this.showToast('Failed to clear log', 'error');
+        }
+    }
+    
+    async loadActivityMode() {
+        try {
+            const response = await fetch('/api/activity/mode');
+            const data = await response.json();
+            
+            const toggle = document.getElementById('activity-mode-toggle');
+            const label = document.getElementById('activity-mode-label');
+            const hint = document.getElementById('activity-mode-hint');
+            
+            toggle.checked = data.suppress_mode;
+            
+            if (data.suppress_mode) {
+                label.textContent = 'Suppress Mode';
+                hint.textContent = 'Updates existing token entries';
+            } else {
+                label.textContent = 'Extended Mode';
+                hint.textContent = 'Shows all token detection events';
+            }
+        } catch (error) {
+            console.error('Failed to load activity mode:', error);
+        }
+    }
+    
+    async toggleActivityMode(suppressMode) {
+        try {
+            const response = await fetch('/api/activity/mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ suppress_mode: suppressMode })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                const label = document.getElementById('activity-mode-label');
+                const hint = document.getElementById('activity-mode-hint');
+                
+                if (suppressMode) {
+                    label.textContent = 'Suppress Mode';
+                    hint.textContent = 'Updates existing token entries';
+                } else {
+                    label.textContent = 'Extended Mode';
+                    hint.textContent = 'Shows all token detection events';
+                }
+                
+                this.showToast(`Activity log mode: ${data.mode}`, 'success');
+                await this.loadActivity();
+            } else {
+                this.showToast('Failed to toggle activity mode', 'error');
+            }
+        } catch (error) {
+            this.showToast('Failed to toggle activity mode', 'error');
         }
     }
 

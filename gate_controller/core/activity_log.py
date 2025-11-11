@@ -25,6 +25,7 @@ class ActivityLog:
         self.max_entries = max_entries
         self.entries: List[Dict] = []
         self._lock = Lock()
+        self.suppress_mode = True  # Default to suppressed mode
         
         # Ensure log directory exists
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -112,6 +113,19 @@ class ActivityLog:
             self.entries = []
             self._save_entries()
     
+    def set_suppress_mode(self, enabled: bool):
+        """Set suppress mode for token detection logging.
+        
+        Args:
+            enabled: True for suppress mode (update existing entries),
+                    False for extended mode (create new entries each time)
+        """
+        self.suppress_mode = enabled
+    
+    def get_suppress_mode(self) -> bool:
+        """Get current suppress mode status."""
+        return self.suppress_mode
+    
     # Convenience methods for common events
     def log_gate_opened(self, reason: str, token_name: Optional[str] = None):
         """Log gate opened event."""
@@ -125,7 +139,11 @@ class ActivityLog:
         self.add_entry("gate_closed", f"Gate closed: {reason}")
     
     def log_token_detected(self, token_uuid: str, token_name: str, rssi: int = None, distance: float = None):
-        """Log token detected event with signal strength and distance."""
+        """Log token detected event with signal strength and distance.
+        
+        In suppress mode, updates existing entry for same token.
+        In extended mode, creates new entry for each detection.
+        """
         details = {"token_uuid": token_uuid, "token_name": token_name}
         
         message_parts = [f"Token detected: {token_name}"]
@@ -140,7 +158,40 @@ class ActivityLog:
             message_parts.append(f"Distance: ~{distance}m")
         
         message = " | ".join(message_parts)
+        
+        # In suppress mode, update existing entry if found
+        if self.suppress_mode:
+            if self._update_token_detection(token_uuid, message, details):
+                return  # Entry updated, done
+        
+        # Extended mode or no existing entry found: add new entry
         self.add_entry("token_detected", message, details)
+    
+    def _update_token_detection(self, token_uuid: str, message: str, details: Dict) -> bool:
+        """Update existing token detection entry if found.
+        
+        Args:
+            token_uuid: Token UUID to find
+            message: Updated message
+            details: Updated details
+            
+        Returns:
+            True if entry was found and updated, False otherwise
+        """
+        with self._lock:
+            # Search backwards (most recent entries first) for matching token_detected entry
+            for i in range(len(self.entries) - 1, -1, -1):
+                entry = self.entries[i]
+                if (entry.get("type") == "token_detected" and 
+                    entry.get("details", {}).get("token_uuid") == token_uuid):
+                    # Found existing entry - update it
+                    entry["timestamp"] = datetime.now().isoformat()
+                    entry["message"] = message
+                    entry["details"] = details
+                    entry["update_count"] = entry.get("update_count", 0) + 1
+                    self._save_entries()
+                    return True
+            return False
     
     def _get_signal_quality(self, rssi: int) -> str:
         """Get signal quality description from RSSI."""

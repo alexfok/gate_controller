@@ -449,6 +449,32 @@ class DashboardServer:
             await self._broadcast_update("activity_cleared", {})
             return {"success": True, "message": "Activity log cleared"}
         
+        @self.app.get("/api/activity/mode")
+        async def get_activity_mode():
+            """Get activity log suppress mode status."""
+            return {
+                "suppress_mode": self.activity_log.get_suppress_mode(),
+                "mode": "suppress" if self.activity_log.get_suppress_mode() else "extended"
+            }
+        
+        @self.app.post("/api/activity/mode")
+        async def set_activity_mode(data: dict):
+            """Set activity log suppress mode.
+            
+            Body:
+                suppress_mode: boolean (true for suppress, false for extended)
+            """
+            suppress_mode = data.get("suppress_mode", True)
+            self.activity_log.set_suppress_mode(suppress_mode)
+            mode_name = "suppress" if suppress_mode else "extended"
+            self.activity_log.add_entry("config_updated", f"Activity log mode changed to: {mode_name}")
+            return {
+                "success": True,
+                "suppress_mode": suppress_mode,
+                "mode": mode_name,
+                "message": f"Activity log mode set to {mode_name}"
+            }
+        
         @self.app.post("/api/service/restart")
         async def restart_service():
             """Restart the service if running under systemd."""
