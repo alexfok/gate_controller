@@ -61,6 +61,23 @@ class C4Client:
             callback: Function(token, controller_name) to call on refresh
         """
         self._on_token_refresh = callback
+    
+    def _is_unauthorized_error(self, error: Exception) -> bool:
+        """Check if error is due to expired/invalid token (401 Unauthorized).
+        
+        Args:
+            error: Exception to check
+            
+        Returns:
+            True if error is 401/Unauthorized
+        """
+        error_str = str(error).lower()
+        return (
+            "unauthorized" in error_str or
+            "expired" in error_str or
+            "invalid token" in error_str or
+            "401" in error_str
+        )
 
     async def connect(self, max_retries: int = 3, retry_delay: float = 2.0):
         """Establish connection to Control4 controller with retry logic.
@@ -184,7 +201,7 @@ class C4Client:
         self.logger.info("Disconnected from Control4")
 
     async def open_gate(self) -> bool:
-        """Open the gate.
+        """Open the gate with auto-refresh on token expiration.
         
         Returns:
             True if successful, False otherwise
@@ -206,11 +223,32 @@ class C4Client:
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to open gate: {e}")
-            return False
+            # Check if error is due to expired token
+            if self._is_unauthorized_error(e):
+                self.logger.warning("Token expired during gate open, refreshing...")
+                try:
+                    # Refresh token and retry
+                    await self._authenticate_with_cloud()
+                    self.logger.info("Token refreshed, retrying gate open...")
+                    
+                    result = await self.director.sendPostRequest(
+                        f"/api/v1/items/{self.gate_device_id}/commands",
+                        "Run Scenario",
+                        {"Scenario": self.open_scenario}
+                    )
+                    
+                    self.logger.info("Gate opened successfully (after token refresh)")
+                    return True
+                    
+                except Exception as retry_error:
+                    self.logger.error(f"Failed to open gate after token refresh: {retry_error}")
+                    return False
+            else:
+                self.logger.error(f"Failed to open gate: {e}")
+                return False
 
     async def close_gate(self) -> bool:
-        """Close the gate.
+        """Close the gate with auto-refresh on token expiration.
         
         Returns:
             True if successful, False otherwise
@@ -232,8 +270,29 @@ class C4Client:
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to close gate: {e}")
-            return False
+            # Check if error is due to expired token
+            if self._is_unauthorized_error(e):
+                self.logger.warning("Token expired during gate close, refreshing...")
+                try:
+                    # Refresh token and retry
+                    await self._authenticate_with_cloud()
+                    self.logger.info("Token refreshed, retrying gate close...")
+                    
+                    result = await self.director.sendPostRequest(
+                        f"/api/v1/items/{self.gate_device_id}/commands",
+                        "Run Scenario",
+                        {"Scenario": self.close_scenario}
+                    )
+                    
+                    self.logger.info("Gate closed successfully (after token refresh)")
+                    return True
+                    
+                except Exception as retry_error:
+                    self.logger.error(f"Failed to close gate after token refresh: {retry_error}")
+                    return False
+            else:
+                self.logger.error(f"Failed to close gate: {e}")
+                return False
 
     async def send_notification(self, title: str, message: str, priority: Optional[str] = None) -> bool:
         """Send push notification (DISABLED).
@@ -251,7 +310,7 @@ class C4Client:
         return True
 
     async def check_gate_status(self) -> dict:
-        """Check gate status.
+        """Check gate status with auto-refresh on token expiration.
         
         Returns:
             Dictionary with gate status information
@@ -266,8 +325,23 @@ class C4Client:
             return {"status": "online", "info": device_info}
             
         except Exception as e:
-            self.logger.error(f"Failed to check gate status: {e}")
-            return {"error": str(e)}
+            # Check if error is due to expired token
+            if self._is_unauthorized_error(e):
+                self.logger.warning("Token expired during status check, refreshing...")
+                try:
+                    # Refresh token and retry
+                    await self._authenticate_with_cloud()
+                    self.logger.info("Token refreshed, retrying status check...")
+                    
+                    device_info = await self.director.getItemInfo(self.gate_device_id)
+                    return {"status": "online", "info": device_info}
+                    
+                except Exception as retry_error:
+                    self.logger.error(f"Failed to check gate status after token refresh: {retry_error}")
+                    return {"error": str(retry_error)}
+            else:
+                self.logger.error(f"Failed to check gate status: {e}")
+                return {"error": str(e)}
 
     async def __aenter__(self):
         """Async context manager entry."""
