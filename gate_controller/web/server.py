@@ -428,24 +428,26 @@ class DashboardServer:
                 if not uuid:
                     continue
                 
-                # Check if registered and active
+                # Check if registered
                 token_info = self.controller.token_manager.get_token_by_uuid(uuid)
                 if not token_info:
                     self.logger.info(f"BCG04: iBeacon {uuid} NOT REGISTERED (ignored)")
                     ignored_count += 1
                     continue
                 
-                is_active = token_info.get('active', True)
-                if not is_active:
-                    self.logger.debug(f"BCG04 batch: Token {token_info.get('name')} is paused")
-                    ignored_count += 1
-                    continue
-                
-                # Process registered, active token
+                # Process registered token (will check active status inside _handle_token_detected)
                 name = token_info.get('name', 'Unknown')
-                self.logger.info(f"BCG04 batch: Processing token {name} ({uuid}) | RSSI: {rssi}")
+                is_active = token_info.get('active', True)
+                
+                if is_active:
+                    self.logger.info(f"BCG04 batch: Processing token {name} ({uuid}) | RSSI: {rssi}")
+                    processed_count += 1
+                else:
+                    self.logger.debug(f"BCG04 batch: Token {name} is paused (will log but not open gate)")
+                    ignored_count += 1
+                
+                # Call handler even for paused tokens (for activity log)
                 await self.controller._handle_token_detected(uuid, name, rssi, None, source="EXT")
-                processed_count += 1
             
             self.logger.info(f"BCG04 batch complete: {ibeacon_count} iBeacons, {processed_count} processed, {ignored_count} ignored")
             if detected_uuids:
