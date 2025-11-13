@@ -258,9 +258,9 @@ class DashboardServer:
                     "action": "ignored"
                 }
             
-            # Call the same handler as BLE scanner
+            # Call the same handler as BLE scanner, but mark as external source
             self.logger.info(f"External token detected via API: {name} ({uuid})")
-            await self.controller._handle_token_detected(uuid, name, rssi, distance)
+            await self.controller._handle_token_detected(uuid, name, rssi, distance, source="EXT")
             
             return {
                 "success": True,
@@ -444,7 +444,7 @@ class DashboardServer:
                 # Process registered, active token
                 name = token_info.get('name', 'Unknown')
                 self.logger.info(f"BCG04 batch: Processing token {name} ({uuid}) | RSSI: {rssi}")
-                await self.controller._handle_token_detected(uuid, name, rssi, None)
+                await self.controller._handle_token_detected(uuid, name, rssi, None, source="EXT")
                 processed_count += 1
             
             self.logger.info(f"BCG04 batch complete: {ibeacon_count} iBeacons, {processed_count} processed, {ignored_count} ignored")

@@ -138,15 +138,23 @@ class ActivityLog:
         """Log gate closed event."""
         self.add_entry("gate_closed", f"Gate closed: {reason}")
     
-    def log_token_detected(self, token_uuid: str, token_name: str, rssi: int = None, distance: float = None):
+    def log_token_detected(self, token_uuid: str, token_name: str, rssi: int = None, distance: float = None, source: str = "INT"):
         """Log token detected event with signal strength and distance.
         
         In suppress mode, updates existing entry for same token.
         In extended mode, creates new entry for each detection.
-        """
-        details = {"token_uuid": token_uuid, "token_name": token_name}
         
-        message_parts = [f"Token detected: {token_name}"]
+        Args:
+            token_uuid: Token UUID
+            token_name: Token name
+            rssi: Signal strength in dBm (optional)
+            distance: Estimated distance in meters (optional)
+            source: Detection source - "INT" (internal BLE) or "EXT" (BCG04) (optional)
+        """
+        details = {"token_uuid": token_uuid, "token_name": token_name, "source": source}
+        
+        source_label = "INT" if source == "INT" else "EXT"
+        message_parts = [f"Token detected: {token_name} [{source_label}]"]
         
         if rssi is not None:
             details["rssi"] = rssi

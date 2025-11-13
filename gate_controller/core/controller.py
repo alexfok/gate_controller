@@ -224,7 +224,7 @@ class GateController:
         """
         self.logger.debug(f"Token detected callback: {name} ({uuid})")
 
-    async def _handle_token_detected(self, uuid: str, name: str, rssi: int = None, distance: float = None):
+    async def _handle_token_detected(self, uuid: str, name: str, rssi: int = None, distance: float = None, source: str = "INT"):
         """Handle detected token and open gate if necessary.
         
         Args:
@@ -232,6 +232,7 @@ class GateController:
             name: Token name
             rssi: Signal strength in dBm (optional)
             distance: Estimated distance in meters (optional)
+            source: Detection source - "INT" (internal BLE) or "EXT" (BCG04) (optional)
         """
         signal_info = ""
         if rssi is not None:
@@ -239,11 +240,12 @@ class GateController:
         if distance is not None and distance > 0:
             signal_info += f" | Distance: ~{distance}m"
         
-        self.logger.info(f"Registered token detected: {name} ({uuid}){signal_info}")
+        source_label = "[INT]" if source == "INT" else "[EXT]"
+        self.logger.info(f"Registered token detected {source_label}: {name} ({uuid}){signal_info}")
         
-        # Log token detection with signal strength and distance
+        # Log token detection with signal strength, distance, and source
         if self.activity_log:
-            self.activity_log.log_token_detected(uuid, name, rssi, distance)
+            self.activity_log.log_token_detected(uuid, name, rssi, distance, source)
         
         # Broadcast to dashboard via WebSocket
         if self.dashboard_server:
