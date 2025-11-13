@@ -695,6 +695,7 @@ class DashboardServer:
             "date": today,
             "ble_scanner": {
                 "total": 0,
+                "registered_total": 0,
                 "by_token": {}
             },
             "bcg04": {
@@ -709,6 +710,9 @@ class DashboardServer:
         }
         
         try:
+            # Get list of registered token names
+            registered_tokens = [token.get('name', '') for token in self.config.registered_tokens]
+            
             # BLE Scanner detections by token
             cmd = f'sudo journalctl -u gate-controller --no-pager --since "{today} 00:00:00" | grep "ble.scanner.*Detected iBeacon" | grep -o "BCPro_[A-Za-z0-9_]*" | sort | uniq -c'
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
@@ -720,6 +724,10 @@ class DashboardServer:
                         token = parts[1]
                         stats["ble_scanner"]["by_token"][token] = count
                         stats["ble_scanner"]["total"] += count
+                        
+                        # Count registered tokens separately
+                        if token in registered_tokens:
+                            stats["ble_scanner"]["registered_total"] += count
             
             # BCG04 requests
             cmd = f'sudo journalctl -u gate-controller --no-pager --since "{today} 00:00:00" | grep -c "BCG04 batch: Received"'

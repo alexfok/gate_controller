@@ -723,8 +723,13 @@ class Dashboard {
         const container = document.getElementById('stats-container');
         
         const bleTotal = stats.ble_scanner.total;
+        const bleRegistered = stats.ble_scanner.registered_total;
         const bcgTotal = stats.bcg04.total_requests;
+        const bcgRegistered = stats.bcg04.registered_detections;
         const gateOpens = stats.gate_opens.total;
+        
+        // Calculate percentages
+        const bleRegisteredPercent = bleTotal > 0 ? ((bleRegistered / bleTotal) * 100).toFixed(1) : 0;
         
         let html = `
             <div class="stats-summary">
@@ -763,6 +768,11 @@ class Dashboard {
                             <td><strong>Total Activity</strong></td>
                             <td>${bleTotal} detections</td>
                             <td>${bcgTotal} requests</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Registered Tokens</strong></td>
+                            <td>✅ ${bleRegistered} (${bleRegisteredPercent}%)</td>
+                            <td>❌ ${bcgRegistered}</td>
                         </tr>
                         <tr>
                             <td><strong>Gate Triggers</strong></td>
