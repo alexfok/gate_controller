@@ -714,7 +714,7 @@ class DashboardServer:
             registered_tokens = [token.get('name', '') for token in self.config.registered_tokens]
             
             # BLE Scanner detections by token
-            cmd = f'sudo journalctl -u gate-controller --no-pager --since "{today} 00:00:00" | grep "ble.scanner.*Detected iBeacon" | grep -o "BCPro_[A-Za-z0-9_]*" | sort | uniq -c'
+            cmd = f'journalctl -u gate-controller --no-pager --since "{today} 00:00:00" | grep "ble.scanner.*Detected iBeacon" | grep -o "BCPro_[A-Za-z0-9_]*" | sort | uniq -c'
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 for line in result.stdout.strip().split('\n'):
@@ -730,19 +730,19 @@ class DashboardServer:
                             stats["ble_scanner"]["registered_total"] += count
             
             # BCG04 requests
-            cmd = f'sudo journalctl -u gate-controller --no-pager --since "{today} 00:00:00" | grep -c "BCG04 batch: Received"'
+            cmd = f'journalctl -u gate-controller --no-pager --since "{today} 00:00:00" | grep -c "BCG04 batch: Received"'
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 stats["bcg04"]["total_requests"] = int(result.stdout.strip() or 0)
             
             # BCG04 empty batches
-            cmd = f'sudo journalctl -u gate-controller --no-pager --since "{today} 00:00:00" | grep -c "BCG04 batch: Empty"'
+            cmd = f'journalctl -u gate-controller --no-pager --since "{today} 00:00:00" | grep -c "BCG04 batch: Empty"'
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 stats["bcg04"]["empty_batches"] = int(result.stdout.strip() or 0)
             
             # Gate opens
-            cmd = f'sudo journalctl -u gate-controller --no-pager --since "{today} 00:00:00" | grep "Opening gate - Reason: Token detected:" | grep -o "Token detected: [A-Za-z0-9_]*" | cut -d: -f2 | sed "s/^ //" | sort | uniq -c'
+            cmd = f'journalctl -u gate-controller --no-pager --since "{today} 00:00:00" | grep "Opening gate - Reason: Token detected:" | grep -o "Token detected: [A-Za-z0-9_]*" | cut -d: -f2 | sed "s/^ //" | sort | uniq -c'
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 for line in result.stdout.strip().split('\n'):
