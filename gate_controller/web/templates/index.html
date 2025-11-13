@@ -34,6 +34,10 @@
                 <span class="tab-icon">📜</span>
                 Activity Log
             </button>
+            <button class="tab-btn" data-tab="statistics">
+                <span class="tab-icon">📊</span>
+                Statistics
+            </button>
         </div>
 
         <!-- Tab Content -->
@@ -209,6 +213,35 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Statistics Tab -->
+            <div class="tab-pane" id="statistics-pane">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Detection Statistics (Today)</h2>
+                        <button class="btn btn-primary" id="btn-run-stats">
+                            <span class="btn-icon">📊</span>
+                            Run Detection Stats
+                        </button>
+                    </div>
+                    <div id="stats-container">
+                        <div class="stats-placeholder">Click "Run Detection Stats" to view statistics</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Notes & Labels</h2>
+                        <button class="btn btn-sm btn-primary" id="btn-add-note">
+                            <span class="btn-icon">📝</span>
+                            Add Note
+                        </button>
+                    </div>
+                    <div id="notes-container">
+                        <div class="loading">Loading notes...</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -306,6 +339,30 @@
                         <div class="empty-state">No devices found</div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Note Modal -->
+    <div class="modal" id="add-note-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Note / Label</h3>
+                <button class="modal-close" id="note-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="note-label">Label (e.g., "BCG04 Moved to Garage")</label>
+                    <input type="text" id="note-label" placeholder="Detection Stats Label">
+                </div>
+                <div class="form-group">
+                    <label for="note-text">Note</label>
+                    <textarea id="note-text" rows="3" placeholder="Additional details..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="note-modal-cancel">Cancel</button>
+                <button class="btn btn-primary" id="note-modal-save">Save Note</button>
             </div>
         </div>
     </div>

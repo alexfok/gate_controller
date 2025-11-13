@@ -232,6 +232,13 @@ class Dashboard {
         document.getElementById('btn-clear-log').addEventListener('click', () => this.clearLog());
         document.getElementById('activity-mode-toggle').addEventListener('change', (e) => this.toggleActivityMode(e.target.checked));
 
+        // Statistics
+        document.getElementById('btn-run-stats').addEventListener('click', () => this.runStats());
+        document.getElementById('btn-add-note').addEventListener('click', () => this.showAddNoteModal());
+        document.getElementById('note-modal-close').addEventListener('click', () => this.hideAddNoteModal());
+        document.getElementById('note-modal-cancel').addEventListener('click', () => this.hideAddNoteModal());
+        document.getElementById('note-modal-save').addEventListener('click', () => this.saveNote());
+
         // Close modals on outside click
         document.getElementById('add-token-modal').addEventListener('click', (e) => {
             if (e.target.id === 'add-token-modal') {
@@ -248,6 +255,11 @@ class Dashboard {
                 this.hideScanResultsModal();
             }
         });
+        document.getElementById('add-note-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'add-note-modal') {
+                this.hideAddNoteModal();
+            }
+        });
     }
 
     // Data Loading
@@ -256,7 +268,8 @@ class Dashboard {
             this.loadStatus(),
             this.loadTokens(),
             this.loadActivity(),
-            this.loadActivityMode()
+            this.loadActivityMode(),
+            this.loadNotes()
         ]);
     }
 
@@ -675,6 +688,232 @@ class Dashboard {
             }
         } catch (error) {
             this.showToast('Failed to toggle activity mode', 'error');
+        }
+    }
+
+    // Statistics
+    async runStats() {
+        const button = document.getElementById('btn-run-stats');
+        const container = document.getElementById('stats-container');
+        
+        button.disabled = true;
+        button.textContent = '⏳ Gathering stats...';
+        container.innerHTML = '<div class="loading">Gathering statistics from logs... This may take a few seconds...</div>';
+        
+        try {
+            const response = await fetch('/api/stats');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.renderStats(data.stats);
+                this.showToast('Statistics loaded successfully', 'success');
+            } else {
+                this.showToast('Failed to load statistics', 'error');
+            }
+        } catch (error) {
+            console.error('Failed to run stats:', error);
+            this.showToast('Failed to run statistics', 'error');
+        } finally {
+            button.disabled = false;
+            button.innerHTML = '<span class="btn-icon">📊</span> Run Detection Stats';
+        }
+    }
+    
+    renderStats(stats) {
+        const container = document.getElementById('stats-container');
+        
+        const bleTotal = stats.ble_scanner.total;
+        const bcgTotal = stats.bcg04.total_requests;
+        const gateOpens = stats.gate_opens.total;
+        
+        let html = `
+            <div class="stats-summary">
+                <h3>Summary for ${stats.date}</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">BLE Scanner</div>
+                        <div class="stat-value">${bleTotal}</div>
+                        <div class="stat-desc">Total Detections</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">BCG04 Gateway</div>
+                        <div class="stat-value">${bcgTotal}</div>
+                        <div class="stat-desc">Total Requests</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Gate Opens</div>
+                        <div class="stat-value">${gateOpens}</div>
+                        <div class="stat-desc">Successful Opens</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stats-comparison">
+                <h3>📊 Comparison: BLE vs BCG04 (Today)</h3>
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>BLE Scanner</th>
+                            <th>BCG04 Gateway</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Total Activity</strong></td>
+                            <td>${bleTotal} detections</td>
+                            <td>${bcgTotal} requests</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Gate Triggers</strong></td>
+                            <td>✅ ${gateOpens}</td>
+                            <td>❌ 0</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Success Rate</strong></td>
+                            <td>${bleTotal > 0 ? '100%' : '0%'}</td>
+                            <td>${stats.bcg04.empty_batches === bcgTotal ? '0% (filtered)' : 'N/A'}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        // Add BLE scanner by token
+        if (Object.keys(stats.ble_scanner.by_token).length > 0) {
+            html += `
+                <div class="stats-detail">
+                    <h4>BLE Scanner Detections by Token</h4>
+                    <table class="stats-table">
+                        <thead>
+                            <tr>
+                                <th>Token</th>
+                                <th>Detections</th>
+                                <th>% of Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+            
+            for (const [token, count] of Object.entries(stats.ble_scanner.by_token)) {
+                const percent = ((count / bleTotal) * 100).toFixed(1);
+                html += `
+                    <tr>
+                        <td>${this.escapeHtml(token)}</td>
+                        <td>${count}</td>
+                        <td>${percent}%</td>
+                    </tr>`;
+            }
+            
+            html += `
+                        </tbody>
+                    </table>
+                </div>`;
+        }
+        
+        // Add gate opens by token
+        if (Object.keys(stats.gate_opens.by_token).length > 0) {
+            html += `
+                <div class="stats-detail">
+                    <h4>Gate Opens by Token</h4>
+                    <table class="stats-table">
+                        <thead>
+                            <tr>
+                                <th>Token</th>
+                                <th>Opens</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+            
+            for (const [token, count] of Object.entries(stats.gate_opens.by_token)) {
+                html += `
+                    <tr>
+                        <td>${this.escapeHtml(token)}</td>
+                        <td>${count}</td>
+                    </tr>`;
+            }
+            
+            html += `
+                        </tbody>
+                    </table>
+                </div>`;
+        }
+        
+        container.innerHTML = html;
+    }
+    
+    async loadNotes() {
+        try {
+            const response = await fetch('/api/stats/notes');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.renderNotes(data.notes);
+            }
+        } catch (error) {
+            console.error('Failed to load notes:', error);
+        }
+    }
+    
+    renderNotes(notes) {
+        const container = document.getElementById('notes-container');
+        
+        if (notes.length === 0) {
+            container.innerHTML = '<div class="empty-state">No notes yet. Add a note to mark BCG04 location changes or other important events.</div>';
+            return;
+        }
+        
+        container.innerHTML = notes.reverse().map(note => {
+            const time = new Date(note.timestamp).toLocaleString();
+            return `
+                <div class="note-item">
+                    <div class="note-header">
+                        <strong>${this.escapeHtml(note.label)}</strong>
+                        <span class="note-time">${time}</span>
+                    </div>
+                    <div class="note-body">${this.escapeHtml(note.note)}</div>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    showAddNoteModal() {
+        document.getElementById('note-label').value = '';
+        document.getElementById('note-text').value = '';
+        document.getElementById('add-note-modal').style.display = 'flex';
+    }
+    
+    hideAddNoteModal() {
+        document.getElementById('add-note-modal').style.display = 'none';
+    }
+    
+    async saveNote() {
+        const label = document.getElementById('note-label').value.trim();
+        const note = document.getElementById('note-text').value.trim();
+        
+        if (!label) {
+            this.showToast('Please enter a label', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/stats/notes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ label, note })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showToast('Note added successfully', 'success');
+                this.hideAddNoteModal();
+                await this.loadNotes();
+            } else {
+                this.showToast('Failed to add note', 'error');
+            }
+        } catch (error) {
+            console.error('Failed to save note:', error);
+            this.showToast('Failed to add note', 'error');
         }
     }
 

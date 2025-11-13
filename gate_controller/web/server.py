@@ -542,6 +542,64 @@ class DashboardServer:
                 self.logger.error(f"Failed to refresh token: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
         
+        @self.app.get("/api/stats")
+        async def get_stats():
+            """Get detection statistics for today."""
+            try:
+                stats = self._get_today_stats()
+                return {"success": True, "stats": stats}
+            except Exception as e:
+                self.logger.error(f"Failed to get stats: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.get("/api/stats/notes")
+        async def get_stats_notes():
+            """Get all statistics notes."""
+            notes_file = Path("logs/stats_notes.json")
+            if notes_file.exists():
+                try:
+                    with open(notes_file, 'r') as f:
+                        notes = json.load(f)
+                    return {"success": True, "notes": notes}
+                except Exception as e:
+                    self.logger.error(f"Failed to read notes: {e}")
+                    return {"success": True, "notes": []}
+            return {"success": True, "notes": []}
+        
+        @self.app.post("/api/stats/notes")
+        async def add_stats_note(data: dict):
+            """Add a statistics note."""
+            try:
+                from datetime import datetime
+                note = {
+                    "timestamp": datetime.now().isoformat(),
+                    "label": data.get("label", ""),
+                    "note": data.get("note", "")
+                }
+                
+                notes_file = Path("logs/stats_notes.json")
+                notes_file.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Load existing notes
+                notes = []
+                if notes_file.exists():
+                    with open(notes_file, 'r') as f:
+                        notes = json.load(f)
+                
+                # Add new note
+                notes.append(note)
+                
+                # Save
+                with open(notes_file, 'w') as f:
+                    json.dump(notes, f, indent=2)
+                
+                self.activity_log.add_entry("stats_note", f"Note added: {note['label']}", {"note": note["note"]})
+                
+                return {"success": True, "message": "Note added", "note": note}
+            except Exception as e:
+                self.logger.error(f"Failed to add note: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
         @self.app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
             """WebSocket endpoint for real-time updates."""
@@ -625,6 +683,73 @@ class DashboardServer:
     async def broadcast_gate_closed(self, reason: str):
         """Broadcast gate closed event."""
         await self._broadcast_update("gate_closed", {"reason": reason})
+    
+    # Helper methods for statistics
+    def _get_today_stats(self) -> dict:
+        """Get detection statistics for today."""
+        import subprocess
+        from datetime import datetime
+        
+        today = datetime.now().strftime("%Y-%m-%d")
+        stats = {
+            "date": today,
+            "ble_scanner": {
+                "total": 0,
+                "by_token": {}
+            },
+            "bcg04": {
+                "total_requests": 0,
+                "empty_batches": 0,
+                "registered_detections": 0
+            },
+            "gate_opens": {
+                "total": 0,
+                "by_token": {}
+            }
+        }
+        
+        try:
+            # BLE Scanner detections by token
+            cmd = f'sudo journalctl -u gate-controller --no-pager --since "{today} 00:00:00" | grep "ble.scanner.*Detected iBeacon" | grep -o "BCPro_[A-Za-z0-9_]*" | sort | uniq -c'
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                for line in result.stdout.strip().split('\n'):
+                    if line.strip():
+                        parts = line.strip().split()
+                        count = int(parts[0])
+                        token = parts[1]
+                        stats["ble_scanner"]["by_token"][token] = count
+                        stats["ble_scanner"]["total"] += count
+            
+            # BCG04 requests
+            cmd = f'sudo journalctl -u gate-controller --no-pager --since "{today} 00:00:00" | grep -c "BCG04 batch: Received"'
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                stats["bcg04"]["total_requests"] = int(result.stdout.strip() or 0)
+            
+            # BCG04 empty batches
+            cmd = f'sudo journalctl -u gate-controller --no-pager --since "{today} 00:00:00" | grep -c "BCG04 batch: Empty"'
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                stats["bcg04"]["empty_batches"] = int(result.stdout.strip() or 0)
+            
+            # Gate opens
+            cmd = f'sudo journalctl -u gate-controller --no-pager --since "{today} 00:00:00" | grep "Opening gate - Reason: Token detected:" | grep -o "Token detected: [A-Za-z0-9_]*" | cut -d: -f2 | sed "s/^ //" | sort | uniq -c'
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                for line in result.stdout.strip().split('\n'):
+                    if line.strip():
+                        parts = line.strip().split()
+                        if len(parts) >= 2:
+                            count = int(parts[0])
+                            token = parts[1]
+                            stats["gate_opens"]["by_token"][token] = count
+                            stats["gate_opens"]["total"] += count
+            
+        except Exception as e:
+            self.logger.error(f"Error gathering stats: {e}")
+        
+        return stats
     
     def run(self, host: str = "0.0.0.0", port: int = 8000):
         """
