@@ -772,7 +772,7 @@ class Dashboard {
                         <tr>
                             <td><strong>Registered Tokens</strong></td>
                             <td>✅ ${bleRegistered} (${bleRegisteredPercent}%)</td>
-                            <td>❌ ${bcgRegistered}</td>
+                            <td>${bcgRegistered > 0 ? '✅ ' + bcgRegistered : '❌ 0'}</td>
                         </tr>
                         <tr>
                             <td><strong>Gate Triggers</strong></td>

@@ -741,6 +741,25 @@ class DashboardServer:
             if result.returncode == 0:
                 stats["bcg04"]["empty_batches"] = int(result.stdout.strip() or 0)
             
+            # BCG04 registered token detections (count how many batches detected registered tokens)
+            # Look for logs that show detected UUIDs matching registered tokens
+            cmd = f'journalctl -u gate-controller --no-pager --since "{today} 00:00:00" | grep "BCG04 detected iBeacons:"'
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                # Normalize registered token UUIDs (remove dashes, lowercase)
+                normalized_registered = [token.get('uuid', '').lower().replace('-', '') for token in self.config.registered_tokens]
+                
+                registered_detection_count = 0
+                for line in result.stdout.strip().split('\n'):
+                    if line.strip():
+                        # Check if any registered token UUID appears in this line
+                        for norm_uuid in normalized_registered:
+                            if norm_uuid and norm_uuid in line.lower():
+                                registered_detection_count += 1
+                                break  # Count this line only once even if multiple tokens
+                
+                stats["bcg04"]["registered_detections"] = registered_detection_count
+            
             # Gate opens
             cmd = f'journalctl -u gate-controller --no-pager --since "{today} 00:00:00" | grep "Opening gate - Reason: Token detected:" | grep -o "Token detected: [A-Za-z0-9_]*" | cut -d: -f2 | sed "s/^ //" | sort | uniq -c'
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
