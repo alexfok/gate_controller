@@ -169,6 +169,8 @@ class DashboardServer:
             return {
                 "c4": {
                     "ip": self.config.c4_ip,
+                    "username": self.config.c4_username,
+                    "has_password": bool(self.config.c4_password),  # Don't expose actual password
                     "gate_device_id": self.config.gate_device_id,
                     "open_gate_scenario": self.config.open_gate_scenario,
                     "close_gate_scenario": self.config.close_gate_scenario
@@ -183,17 +185,35 @@ class DashboardServer:
         
         @self.app.post("/api/config")
         async def update_config(data: dict):
-            """Update gate behavior configuration."""
+            """Update system configuration."""
             try:
+                # Update Control4 configuration
+                if 'c4' in data:
+                    c4_config = data['c4']
+                    if 'ip' in c4_config:
+                        self.config.config['c4']['ip'] = c4_config['ip']
+                    if 'username' in c4_config:
+                        self.config.config['c4']['username'] = c4_config['username']
+                    if 'password' in c4_config and c4_config['password']:  # Only update if not empty
+                        self.config.config['c4']['password'] = c4_config['password']
+                    if 'gate_device_id' in c4_config:
+                        self.config.config['c4']['gate_device_id'] = int(c4_config['gate_device_id'])
+                    if 'open_gate_scenario' in c4_config:
+                        self.config.config['c4']['open_gate_scenario'] = int(c4_config['open_gate_scenario'])
+                    if 'close_gate_scenario' in c4_config:
+                        self.config.config['c4']['close_gate_scenario'] = int(c4_config['close_gate_scenario'])
+                
                 # Update gate configuration
-                if 'auto_close_timeout' in data:
-                    self.config.config['gate']['auto_close_timeout'] = int(data['auto_close_timeout'])
-                if 'session_timeout' in data:
-                    self.config.config['gate']['session_timeout'] = int(data['session_timeout'])
-                if 'status_check_interval' in data:
-                    self.config.config['gate']['status_check_interval'] = int(data['status_check_interval'])
-                if 'ble_scan_interval' in data:
-                    self.config.config['gate']['ble_scan_interval'] = int(data['ble_scan_interval'])
+                if 'gate' in data:
+                    gate_config = data['gate']
+                    if 'auto_close_timeout' in gate_config:
+                        self.config.config['gate']['auto_close_timeout'] = int(gate_config['auto_close_timeout'])
+                    if 'session_timeout' in gate_config:
+                        self.config.config['gate']['session_timeout'] = int(gate_config['session_timeout'])
+                    if 'status_check_interval' in gate_config:
+                        self.config.config['gate']['status_check_interval'] = int(gate_config['status_check_interval'])
+                    if 'ble_scan_interval' in gate_config:
+                        self.config.config['gate']['ble_scan_interval'] = int(gate_config['ble_scan_interval'])
                 
                 # Save configuration to file
                 self.config.save()

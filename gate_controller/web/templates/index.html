@@ -128,7 +128,7 @@
                     <div class="card">
                         <div class="card-header">
                             <h2>Control4 Settings</h2>
-                            <button class="btn btn-sm btn-outline" id="btn-edit-config" style="display: none;">
+                            <button class="btn btn-sm btn-outline" id="btn-edit-c4-config">
                                 <span class="btn-icon">✏️</span>
                                 Edit
                             </button>
@@ -137,18 +137,32 @@
                             <div class="config-item">
                                 <label>Controller IP</label>
                                 <div class="config-value" id="config-c4-ip">-</div>
+                                <input type="text" class="config-input" id="input-c4-ip" style="display:none;" placeholder="192.168.100.30">
+                            </div>
+                            <div class="config-item">
+                                <label>Username</label>
+                                <div class="config-value" id="config-c4-username">-</div>
+                                <input type="text" class="config-input" id="input-c4-username" style="display:none;" placeholder="user@example.com">
+                            </div>
+                            <div class="config-item">
+                                <label>Password</label>
+                                <div class="config-value" id="config-c4-password">••••••••</div>
+                                <input type="password" class="config-input" id="input-c4-password" style="display:none;" placeholder="Leave empty to keep current">
                             </div>
                             <div class="config-item">
                                 <label>Gate Device ID</label>
                                 <div class="config-value" id="config-gate-device-id">-</div>
+                                <input type="number" class="config-input" id="input-gate-device-id" style="display:none;" placeholder="348">
                             </div>
                             <div class="config-item">
-                                <label>Open Scenario</label>
+                                <label>Open Gate Scenario</label>
                                 <div class="config-value" id="config-open-scenario">-</div>
+                                <input type="number" class="config-input" id="input-open-scenario" style="display:none;" placeholder="21">
                             </div>
                             <div class="config-item">
-                                <label>Close Scenario</label>
+                                <label>Close Gate Scenario</label>
                                 <div class="config-value" id="config-close-scenario">-</div>
+                                <input type="number" class="config-input" id="input-close-scenario" style="display:none;" placeholder="22">
                             </div>
                         </div>
                     </div>
@@ -156,15 +170,10 @@
                     <div class="card">
                         <div class="card-header">
                             <h2>Gate Behavior</h2>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <button class="btn btn-sm btn-primary" id="btn-save-config" style="display: none;">
-                                    <span class="btn-icon">💾</span>
-                                    Save
-                                </button>
-                                <button class="btn btn-sm btn-outline" id="btn-cancel-config" style="display: none;">
-                                    Cancel
-                                </button>
-                            </div>
+                            <button class="btn btn-sm btn-outline" id="btn-edit-gate-config">
+                                <span class="btn-icon">✏️</span>
+                                Edit
+                            </button>
                         </div>
                         <div class="config-group" id="config-gate-group">
                             <div class="config-item">
@@ -187,6 +196,15 @@
                                 <div class="config-value" id="config-scan-interval">-</div>
                                 <input type="number" class="config-input" id="input-scan-interval" style="display:none;" min="1" max="60">
                             </div>
+                        </div>
+                        <div class="config-actions" style="margin-top: 1rem; display: flex; gap: 0.5rem; display: none;">
+                            <button class="btn btn-sm btn-primary" id="btn-save-config">
+                                <span class="btn-icon">💾</span>
+                                Save & Restart
+                            </button>
+                            <button class="btn btn-sm btn-outline" id="btn-cancel-config">
+                                Cancel
+                            </button>
                         </div>
                     </div>
                 </div>

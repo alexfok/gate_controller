@@ -8,7 +8,8 @@ class Dashboard {
         this.filteredTokens = [];
         this.config = null;
         this.isScanning = false;
-        this.isEditingConfig = false;
+        this.isEditingC4Config = false;
+        this.isEditingGateConfig = false;
         this.refreshIntervals = {};
         this.scannedDevices = { ibeacons: [], devices: [] }; // Full scan results
         this.isScanningAll = false;
@@ -477,6 +478,8 @@ class Dashboard {
     renderConfig(config) {
         // Control4 settings
         document.getElementById('config-c4-ip').textContent = config.c4.ip || '-';
+        document.getElementById('config-c4-username').textContent = config.c4.username || '-';
+        document.getElementById('config-c4-password').textContent = config.c4.has_password ? '••••••••' : 'Not set';
         document.getElementById('config-gate-device-id').textContent = config.c4.gate_device_id || '-';
         document.getElementById('config-open-scenario').textContent = config.c4.open_gate_scenario || '-';
         document.getElementById('config-close-scenario').textContent = config.c4.close_gate_scenario || '-';
@@ -491,18 +494,21 @@ class Dashboard {
         document.getElementById('config-scan-interval').textContent = 
             config.gate.ble_scan_interval ? `${config.gate.ble_scan_interval}s` : '-';
 
-        // Set up edit button click handler
-        const editBtn = document.getElementById('btn-edit-config');
-        editBtn.style.display = 'none'; // Hide for now (config editing disabled in this version)
+        // Set up edit button click handlers
+        const editC4Btn = document.getElementById('btn-edit-c4-config');
+        const editGateBtn = document.getElementById('btn-edit-gate-config');
         
-        // Enable edit mode on double-click of gate behavior card header
-        const gateBehaviorHeader = document.querySelector('#config-pane .card:nth-child(2) .card-header h2');
-        if (gateBehaviorHeader) {
-            gateBehaviorHeader.style.cursor = 'pointer';
-            gateBehaviorHeader.title = 'Double-click to edit';
-            gateBehaviorHeader.ondblclick = () => {
-                this.isEditingConfig = true;
-                this.toggleConfigEdit(true);
+        if (editC4Btn) {
+            editC4Btn.onclick = () => {
+                this.isEditingC4Config = true;
+                this.toggleC4ConfigEdit(true);
+            };
+        }
+        
+        if (editGateBtn) {
+            editGateBtn.onclick = () => {
+                this.isEditingGateConfig = true;
+                this.toggleGateConfigEdit(true);
             };
         }
     }
@@ -955,12 +961,29 @@ class Dashboard {
 
     // Config Edit/Save
     async saveConfig() {
-        const config = {
-            auto_close_timeout: parseInt(document.getElementById('input-auto-close').value),
-            session_timeout: parseInt(document.getElementById('input-session-timeout').value),
-            status_check_interval: parseInt(document.getElementById('input-status-interval').value),
-            ble_scan_interval: parseInt(document.getElementById('input-scan-interval').value)
-        };
+        const config = {};
+        
+        // Include C4 config if editing
+        if (this.isEditingC4Config) {
+            config.c4 = {
+                ip: document.getElementById('input-c4-ip').value,
+                username: document.getElementById('input-c4-username').value,
+                password: document.getElementById('input-c4-password').value,  // Empty if not changed
+                gate_device_id: parseInt(document.getElementById('input-gate-device-id').value),
+                open_gate_scenario: parseInt(document.getElementById('input-open-scenario').value),
+                close_gate_scenario: parseInt(document.getElementById('input-close-scenario').value)
+            };
+        }
+        
+        // Include Gate config if editing
+        if (this.isEditingGateConfig) {
+            config.gate = {
+                auto_close_timeout: parseInt(document.getElementById('input-auto-close').value),
+                session_timeout: parseInt(document.getElementById('input-session-timeout').value),
+                status_check_interval: parseInt(document.getElementById('input-status-interval').value),
+                ble_scan_interval: parseInt(document.getElementById('input-scan-interval').value)
+            };
+        }
 
         try {
             const response = await fetch('/api/config', {
@@ -973,8 +996,10 @@ class Dashboard {
             
             if (data.success) {
                 this.showToast('Configuration saved successfully', 'success');
-                this.isEditingConfig = false;
-                this.toggleConfigEdit(false);
+                this.isEditingC4Config = false;
+                this.isEditingGateConfig = false;
+                this.toggleC4ConfigEdit(false);
+                this.toggleGateConfigEdit(false);
                 this.config = null; // Clear cached config to force reload
                 await this.loadConfig();
                 
@@ -1009,25 +1034,72 @@ class Dashboard {
     }
 
     cancelConfigEdit() {
-        this.isEditingConfig = false;
-        this.toggleConfigEdit(false);
+        this.isEditingC4Config = false;
+        this.isEditingGateConfig = false;
+        this.toggleC4ConfigEdit(false);
+        this.toggleGateConfigEdit(false);
         this.renderConfig(this.config);
     }
 
-    toggleConfigEdit(enable) {
-        // Toggle visibility of edit/save buttons
-        document.getElementById('btn-save-config').style.display = enable ? 'inline-flex' : 'none';
-        document.getElementById('btn-cancel-config').style.display = enable ? 'inline-block' : 'none';
-
-        // Toggle visibility of values and inputs
-        const configValues = document.querySelectorAll('.config-value');
-        const configInputs = document.querySelectorAll('.config-input');
+    toggleC4ConfigEdit(enable) {
+        // Toggle edit button visibility
+        const editBtn = document.getElementById('btn-edit-c4-config');
+        if (editBtn) {
+            editBtn.style.display = enable ? 'none' : 'inline-flex';
+        }
         
-        configValues.forEach(el => el.style.display = enable ? 'none' : 'block');
-        configInputs.forEach(el => el.style.display = enable ? 'block' : 'none');
+        // Show/hide save buttons
+        const actionsDiv = document.querySelector('.config-actions');
+        if (actionsDiv && enable) {
+            actionsDiv.style.display = 'flex';
+        } else if (actionsDiv && !enable && !this.isEditingGateConfig) {
+            actionsDiv.style.display = 'none';
+        }
+
+        // Toggle visibility of C4 values and inputs
+        const c4Group = document.getElementById('config-c4-group');
+        const c4Values = c4Group.querySelectorAll('.config-value');
+        const c4Inputs = c4Group.querySelectorAll('.config-input');
+        
+        c4Values.forEach(el => el.style.display = enable ? 'none' : 'block');
+        c4Inputs.forEach(el => el.style.display = enable ? 'block' : 'none');
 
         if (enable) {
-            // Populate inputs with current values
+            // Populate C4 inputs with current values
+            document.getElementById('input-c4-ip').value = this.config.c4.ip;
+            document.getElementById('input-c4-username').value = this.config.c4.username;
+            document.getElementById('input-c4-password').value = '';  // Always empty for security
+            document.getElementById('input-gate-device-id').value = this.config.c4.gate_device_id;
+            document.getElementById('input-open-scenario').value = this.config.c4.open_gate_scenario;
+            document.getElementById('input-close-scenario').value = this.config.c4.close_gate_scenario;
+        }
+    }
+
+    toggleGateConfigEdit(enable) {
+        // Toggle edit button visibility
+        const editBtn = document.getElementById('btn-edit-gate-config');
+        if (editBtn) {
+            editBtn.style.display = enable ? 'none' : 'inline-flex';
+        }
+        
+        // Show/hide save buttons
+        const actionsDiv = document.querySelector('.config-actions');
+        if (actionsDiv && enable) {
+            actionsDiv.style.display = 'flex';
+        } else if (actionsDiv && !enable && !this.isEditingC4Config) {
+            actionsDiv.style.display = 'none';
+        }
+
+        // Toggle visibility of Gate values and inputs
+        const gateGroup = document.getElementById('config-gate-group');
+        const gateValues = gateGroup.querySelectorAll('.config-value');
+        const gateInputs = gateGroup.querySelectorAll('.config-input');
+        
+        gateValues.forEach(el => el.style.display = enable ? 'none' : 'block');
+        gateInputs.forEach(el => el.style.display = enable ? 'block' : 'none');
+
+        if (enable) {
+            // Populate Gate inputs with current values
             document.getElementById('input-auto-close').value = this.config.gate.auto_close_timeout;
             document.getElementById('input-session-timeout').value = this.config.gate.session_timeout;
             document.getElementById('input-status-interval').value = this.config.gate.status_check_interval;
