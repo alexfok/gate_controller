@@ -70,6 +70,7 @@ class GateController:
         self.gate_state = GateState.UNKNOWN
         self.last_open_time: Optional[datetime] = None
         self.session_start_time: Optional[datetime] = None
+        self.last_token_detection_time: Optional[datetime] = None  # Track last token detection
         self._running = False
         self._tasks = []
     
@@ -234,6 +235,9 @@ class GateController:
             distance: Estimated distance in meters (optional)
             source: Detection source - "INT" (internal BLE) or "EXT" (BCG04) (optional)
         """
+        # Update last token detection time (for safety mechanism in close_gate)
+        self.last_token_detection_time = datetime.now()
+        
         signal_info = ""
         if rssi is not None:
             signal_info = f" | RSSI: {rssi} dBm"
@@ -315,15 +319,33 @@ class GateController:
         
         return success
 
-    async def close_gate(self, reason: str = "Manual") -> bool:
+    async def close_gate(self, reason: str = "Manual", force: bool = False) -> bool:
         """Close the gate.
         
         Args:
             reason: Reason for closing
+            force: If True, bypass the token idle safety check (default: False)
             
         Returns:
             True if successful
         """
+        # Safety mechanism: Check if tokens were recently detected (unless forced)
+        if not force and self.last_token_detection_time is not None:
+            token_idle = self.config.token_idle_timeout
+            time_since_detection = (datetime.now() - self.last_token_detection_time).total_seconds()
+            
+            if time_since_detection < token_idle:
+                remaining = token_idle - time_since_detection
+                self.logger.warning(
+                    f"Safety check: Token detected {time_since_detection:.1f}s ago. "
+                    f"Waiting {remaining:.1f}s more before closing. Reason: {reason}"
+                )
+                if self.activity_log:
+                    self.activity_log.log_error(
+                        f"Gate close blocked by safety check - token detected {time_since_detection:.1f}s ago"
+                    )
+                return False
+        
         self.logger.info(f"Closing gate - Reason: {reason}")
         
         self.gate_state = GateState.CLOSING

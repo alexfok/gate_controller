@@ -69,6 +69,7 @@ class Config:
             'gate': {
                 'auto_close_timeout': 300,  # 5 minutes
                 'session_timeout': 60,      # 1 minute
+                'token_idle_timeout': 30,   # 30 seconds - minimum idle time before gate can close
                 'status_check_interval': 30,
                 'ble_scan_interval': 5
             },
@@ -192,6 +193,11 @@ class Config:
     def ble_scan_interval(self) -> int:
         """Get BLE scan interval in seconds."""
         return self.config.get('gate', {}).get('ble_scan_interval', 5)
+
+    @property
+    def token_idle_timeout(self) -> int:
+        """Get token idle timeout in seconds (safety mechanism for gate closing)."""
+        return self.config.get('gate', {}).get('token_idle_timeout', 30)
 
     # Token Configuration
     @property
