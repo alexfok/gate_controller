@@ -192,11 +192,16 @@ class ActivityLog:
                 entry = self.entries[i]
                 if (entry.get("type") == "token_detected" and 
                     entry.get("details", {}).get("token_uuid") == token_uuid):
-                    # Found existing entry - update it
+                    # Found existing entry - update it and move to end (most recent position)
                     entry["timestamp"] = datetime.now().isoformat()
                     entry["message"] = message
                     entry["details"] = details
                     entry["update_count"] = entry.get("update_count", 0) + 1
+                    
+                    # Move entry to end of list so it appears at top when reversed
+                    self.entries.pop(i)
+                    self.entries.append(entry)
+                    
                     self._save_entries()
                     return True
             return False
