@@ -489,6 +489,8 @@ class Dashboard {
             config.gate.auto_close_timeout ? `${config.gate.auto_close_timeout}s (${Math.floor(config.gate.auto_close_timeout / 60)}m)` : '-';
         document.getElementById('config-session-timeout').textContent = 
             config.gate.session_timeout ? `${config.gate.session_timeout}s (${Math.floor(config.gate.session_timeout / 60)}m)` : '-';
+        document.getElementById('config-token-idle').textContent = 
+            config.gate.token_idle_timeout ? `${config.gate.token_idle_timeout}s` : '-';
         document.getElementById('config-status-interval').textContent = 
             config.gate.status_check_interval ? `${config.gate.status_check_interval}s` : '-';
         document.getElementById('config-scan-interval').textContent = 
@@ -980,6 +982,7 @@ class Dashboard {
             config.gate = {
                 auto_close_timeout: parseInt(document.getElementById('input-auto-close').value),
                 session_timeout: parseInt(document.getElementById('input-session-timeout').value),
+                token_idle_timeout: parseInt(document.getElementById('input-token-idle').value),
                 status_check_interval: parseInt(document.getElementById('input-status-interval').value),
                 ble_scan_interval: parseInt(document.getElementById('input-scan-interval').value)
             };
@@ -1102,6 +1105,7 @@ class Dashboard {
             // Populate Gate inputs with current values
             document.getElementById('input-auto-close').value = this.config.gate.auto_close_timeout;
             document.getElementById('input-session-timeout').value = this.config.gate.session_timeout;
+            document.getElementById('input-token-idle').value = this.config.gate.token_idle_timeout;
             document.getElementById('input-status-interval').value = this.config.gate.status_check_interval;
             document.getElementById('input-scan-interval').value = this.config.gate.ble_scan_interval;
         }

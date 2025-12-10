@@ -178,6 +178,7 @@ class DashboardServer:
                 "gate": {
                     "auto_close_timeout": self.config.auto_close_timeout,
                     "session_timeout": self.config.session_timeout,
+                    "token_idle_timeout": self.config.token_idle_timeout,
                     "status_check_interval": self.config.status_check_interval,
                     "ble_scan_interval": self.config.ble_scan_interval
                 }
@@ -210,6 +211,8 @@ class DashboardServer:
                         self.config.config['gate']['auto_close_timeout'] = int(gate_config['auto_close_timeout'])
                     if 'session_timeout' in gate_config:
                         self.config.config['gate']['session_timeout'] = int(gate_config['session_timeout'])
+                    if 'token_idle_timeout' in gate_config:
+                        self.config.config['gate']['token_idle_timeout'] = int(gate_config['token_idle_timeout'])
                     if 'status_check_interval' in gate_config:
                         self.config.config['gate']['status_check_interval'] = int(gate_config['status_check_interval'])
                     if 'ble_scan_interval' in gate_config:
