@@ -178,6 +178,9 @@ class ActivityLog:
     def _update_token_detection(self, token_uuid: str, message: str, details: Dict) -> bool:
         """Update existing token detection entry if found.
         
+        Matches only on token UUID, regardless of source. This means internal (INT)
+        and external (EXT) detections of the same token update the same entry.
+        
         Args:
             token_uuid: Token UUID to find
             message: Updated message
@@ -187,11 +190,17 @@ class ActivityLog:
             True if entry was found and updated, False otherwise
         """
         with self._lock:
+            # Normalize UUID for comparison (lowercase, no dashes)
+            normalized_uuid = token_uuid.lower().replace('-', '')
+            
             # Search backwards (most recent entries first) for matching token_detected entry
             for i in range(len(self.entries) - 1, -1, -1):
                 entry = self.entries[i]
+                entry_uuid = entry.get("details", {}).get("token_uuid", "")
+                normalized_entry_uuid = entry_uuid.lower().replace('-', '')
+                
                 if (entry.get("type") == "token_detected" and 
-                    entry.get("details", {}).get("token_uuid") == token_uuid):
+                    normalized_entry_uuid == normalized_uuid):
                     # Found existing entry - update it and move to end (most recent position)
                     entry["timestamp"] = datetime.now().isoformat()
                     entry["message"] = message
