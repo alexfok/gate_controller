@@ -54,3 +54,5 @@ Thumbs.db
 .env.local
 
 deployment/backups/*.tar.gz
+# Local pulls of Pi config (secrets); keep out of git
+deployment/backups/rpi-config_*/
