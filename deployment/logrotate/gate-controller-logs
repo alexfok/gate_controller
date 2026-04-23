@@ -1,0 +1,17 @@
+# Logrotate snippet for gate_controller file logs (optional belt-and-suspenders).
+# Install (adjust user/path if not afok):
+#   sudo cp deployment/logrotate/gate-controller-logs /etc/logrotate.d/gate-controller-logs
+# Uses copytruncate so the running Python process does not need a signal.
+#
+# Paths must match logging.file in config.yaml (default: logs/gate_controller.log).
+
+/home/afok/gate_controller/logs/*.log {
+    weekly
+    rotate 8
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    su afok afok
+}

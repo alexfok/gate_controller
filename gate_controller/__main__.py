@@ -42,7 +42,8 @@ async def main():
     if args.verbose:
         config.config['logging']['level'] = 'DEBUG'
     
-    logger = get_logger(__name__, config.log_level, config.log_file)
+    # Use a logger under the gate_controller hierarchy so it propagates to the package file handler.
+    logger = get_logger("gate_controller.run", config.log_level, config.log_file)
     logger.info("="*60)
     logger.info("Gate Controller Starting")
     logger.info("="*60)

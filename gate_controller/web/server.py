@@ -178,7 +178,6 @@ class DashboardServer:
                 "gate": {
                     "auto_close_timeout": self.config.auto_close_timeout,
                     "session_timeout": self.config.session_timeout,
-                    "token_idle_timeout": self.config.token_idle_timeout,
                     "status_check_interval": self.config.status_check_interval,
                     "ble_scan_interval": self.config.ble_scan_interval
                 }
@@ -211,8 +210,6 @@ class DashboardServer:
                         self.config.config['gate']['auto_close_timeout'] = int(gate_config['auto_close_timeout'])
                     if 'session_timeout' in gate_config:
                         self.config.config['gate']['session_timeout'] = int(gate_config['session_timeout'])
-                    if 'token_idle_timeout' in gate_config:
-                        self.config.config['gate']['token_idle_timeout'] = int(gate_config['token_idle_timeout'])
                     if 'status_check_interval' in gate_config:
                         self.config.config['gate']['status_check_interval'] = int(gate_config['status_check_interval'])
                     if 'ble_scan_interval' in gate_config:
@@ -243,10 +240,13 @@ class DashboardServer:
         async def close_gate():
             """Manually close the gate."""
             try:
-                await self.controller.c4_client.close_gate()
-                self.activity_log.log_gate_closed("Manual close via dashboard")
-                await self._broadcast_update("gate_closed", {"reason": "Manual"})
-                return {"success": True, "message": "Gate closed"}
+                # Use controller's close_gate with force=True to bypass safety checks
+                success = await self.controller.close_gate("Manual close via dashboard", force=True)
+                if success:
+                    await self._broadcast_update("gate_closed", {"reason": "Manual"})
+                    return {"success": True, "message": "Gate closed"}
+                else:
+                    raise HTTPException(status_code=500, detail="Failed to close gate")
             except Exception as e:
                 self.logger.error(f"Failed to close gate: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
@@ -343,37 +343,44 @@ class DashboardServer:
                 body_bytes = await request.body()
                 body_str = body_bytes.decode('utf-8')
                 
-                # DEBUG: Log raw request
-                self.logger.info("="*80)
-                self.logger.info("BCG04 DEBUG: Raw HTTP POST body:")
-                self.logger.info(f"Content-Type: {request.headers.get('content-type')}")
-                self.logger.info(f"Content-Length: {request.headers.get('content-length')}")
-                self.logger.info(f"Body length: {len(body_bytes)} bytes")
-                self.logger.info(f"Body (first 500 chars):\n{body_str[:500]}")
-                self.logger.info(f"Body (last 200 chars):\n{body_str[-200:]}")
-                self.logger.info("="*80)
+                # Verbose raw body only at DEBUG (BCG04 posts are large and frequent).
+                self.logger.debug(
+                    "BCG04 POST raw: %s bytes, content-type=%s",
+                    len(body_bytes),
+                    request.headers.get("content-type"),
+                )
+                self.logger.debug("BCG04 POST body (first 500 chars): %s", body_str[:500])
+                self.logger.debug("BCG04 POST body (last 200 chars): %s", body_str[-200:])
                 
                 # Try to parse JSON
                 try:
                     data = json.loads(body_str)
-                    self.logger.info(f"BCG04 DEBUG: JSON parsed successfully, type: {type(data)}")
+                    self.logger.debug("BCG04: JSON parsed OK, type=%s", type(data))
                 except json.JSONDecodeError as e:
-                    self.logger.error(f"BCG04 DEBUG: JSON parse error: {e}")
-                    self.logger.error(f"BCG04 DEBUG: Error at position {e.pos}: ...{body_str[max(0,e.pos-50):e.pos+50]}...")
+                    self.logger.error("BCG04: JSON parse error: %s", e)
+                    self.logger.error(
+                        "BCG04: context at pos %s: ...%s...",
+                        e.pos,
+                        body_str[max(0, e.pos - 50) : e.pos + 50],
+                    )
                     return {"success": False, "message": f"JSON parse error: {str(e)}", "error": str(e)}
                 
                 # Check format type
                 if isinstance(data, list):
                     # Direct array format - process all iBeacons
                     result = await _process_bcg04_batch(data)
-                    self.logger.info(f"BCG04 DEBUG: Processing result: {result}")
+                    self.logger.debug("BCG04: batch result: %s", result)
                     return result
                 elif isinstance(data, dict):
                     # Check if it's BCG04 wrapped format: {"msg": "advData", "gmac": "...", "obj": [...]}
                     # BCG04 always sends 'msg' and 'gmac' fields
                     if 'msg' in data and 'gmac' in data:
                         # This is BCG04 format
-                        self.logger.info(f"BCG04 gateway: {data.get('gmac', 'unknown')}, msg: {data.get('msg', 'unknown')}")
+                        self.logger.debug(
+                            "BCG04 gateway: %s msg=%s",
+                            data.get("gmac", "unknown"),
+                            data.get("msg", "unknown"),
+                        )
                         
                         # Get obj array (might be empty or missing if all tokens filtered)
                         obj = data.get('obj', [])
@@ -381,7 +388,7 @@ class DashboardServer:
                             obj = []
                         
                         result = await _process_bcg04_batch(obj)
-                        self.logger.info(f"BCG04 DEBUG: Processing result: {result}")
+                        self.logger.debug("BCG04: wrapped batch result: %s", result)
                         return result
                     elif 'uuid' in data:
                         # Single token format (manual API call)
@@ -390,20 +397,22 @@ class DashboardServer:
                         rssi = data.get('rssi')
                         distance = data.get('distance')
                         result = await _process_token_detection(uuid, name, rssi, distance)
-                        self.logger.info(f"BCG04 DEBUG: Processing result: {result}")
+                        self.logger.debug("BCG04: single-token result: %s", result)
                         return result
                     else:
                         # Unknown dict format - accept it anyway
-                        self.logger.warning(f"BCG04 DEBUG: Unknown dict format (no msg/gmac or uuid) - accepting anyway")
-                        self.logger.warning(f"BCG04 DEBUG: Dict keys: {list(data.keys())}")
+                        self.logger.warning(
+                            "BCG04: unknown dict format (no msg/gmac or uuid); keys=%s",
+                            list(data.keys()),
+                        )
                         return {"success": True, "message": "Data received but format unknown"}
                 else:
-                    self.logger.warning(f"BCG04 DEBUG: Invalid data format - returning 200 anyway")
+                    self.logger.warning("BCG04: invalid data format; returning 200")
                     return {"success": True, "message": "Debug mode: data received but not processed"}
             except Exception as e:
                 # DEBUG: Always return 200 OK even on error
-                self.logger.error(f"BCG04 DEBUG: Error processing: {e}")
-                self.logger.exception("Full traceback:")
+                self.logger.error("BCG04: error processing POST: %s", e)
+                self.logger.exception("BCG04: traceback")
                 return {"success": False, "message": f"Debug mode: error caught: {str(e)}", "error": str(e)}
         
         async def _process_bcg04_batch(scan_results: list):
@@ -418,11 +427,11 @@ class DashboardServer:
             type: 4 = iBeacon (has UUID)
             type: 32 = regular BLE device (no UUID)
             """
-            self.logger.info(f"BCG04 batch: Received {len(scan_results)} scan results")
+            self.logger.debug("BCG04 batch: received %s scan results", len(scan_results))
             
             # Handle empty batch (all tokens filtered out)
             if len(scan_results) == 0:
-                self.logger.info("BCG04 batch: Empty (all tokens filtered)")
+                self.logger.debug("BCG04 batch: empty (all tokens filtered)")
                 return {
                     "success": True,
                     "message": "Empty batch (all tokens filtered)",
@@ -454,7 +463,7 @@ class DashboardServer:
                 # Check if registered
                 token_info = self.controller.token_manager.get_token_by_uuid(uuid)
                 if not token_info:
-                    self.logger.info(f"BCG04: iBeacon {uuid} NOT REGISTERED (ignored)")
+                    self.logger.debug("BCG04: iBeacon %s not registered (ignored)", uuid)
                     ignored_count += 1
                     continue
                 
@@ -472,9 +481,14 @@ class DashboardServer:
                 # Call handler even for paused tokens (for activity log)
                 await self.controller._handle_token_detected(uuid, name, rssi, None, source="EXT")
             
-            self.logger.info(f"BCG04 batch complete: {ibeacon_count} iBeacons, {processed_count} processed, {ignored_count} ignored")
+            self.logger.info(
+                "BCG04 batch complete: %s iBeacons, %s processed, %s ignored",
+                ibeacon_count,
+                processed_count,
+                ignored_count,
+            )
             if detected_uuids:
-                self.logger.info(f"BCG04 detected iBeacons: {', '.join(detected_uuids)}")
+                self.logger.debug("BCG04 iBeacon UUIDs: %s", detected_uuids)
             
             return {
                 "success": True,
