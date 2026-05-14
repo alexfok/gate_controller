@@ -33,7 +33,7 @@ Main deployment script. Copies application files, configuration, and installs de
 
 **Environment Variables:**
 - `RPI_HOST` - Raspberry Pi hostname (default: fokhomerpi.local)
-- `RPI_USER` - SSH user (default: pi)
+- `RPI_USER` - SSH user (default: afok)
 
 ### `setup_rpi.sh`
 Initial Raspberry Pi setup. Installs system packages and configures Bluetooth.
@@ -166,8 +166,8 @@ All scripts support these environment variables:
 
 ```bash
 export RPI_HOST=fokhomerpi.local   # Or use IP: 192.168.100.185
-export RPI_USER=pi
-export RPI_DEPLOY_DIR=/home/pi/gate_controller
+export RPI_USER=afok
+export RPI_DEPLOY_DIR=/home/afok/gate_controller
 
 # Then run any script
 ./scripts/deploy.sh

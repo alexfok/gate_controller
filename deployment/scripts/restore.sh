@@ -9,7 +9,7 @@ set -e
 
 # Configuration
 RPI_HOST="${RPI_HOST:-fokhomerpi.local}"
-RPI_USER="${RPI_USER:-pi}"
+RPI_USER="${RPI_USER:-afok}"
 RPI_DEPLOY_DIR="/home/${RPI_USER}/gate_controller"
 
 # Check arguments

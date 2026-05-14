@@ -7,7 +7,7 @@
 
 # Configuration
 RPI_HOST="${RPI_HOST:-fokhomerpi.local}"
-RPI_USER="${RPI_USER:-pi}"
+RPI_USER="${RPI_USER:-afok}"
 
 # Colors
 GREEN='\033[0;32m'
