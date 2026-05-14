@@ -67,10 +67,10 @@ class Config:
                 'notification_agent_id': 7
             },
             'gate': {
-                'auto_close_timeout': 300,  # 5 minutes
-                'session_timeout': 60,      # 1 minute
-                'token_idle_timeout': 30,   # 30 seconds - minimum idle time before gate can close
-                'status_check_interval': 30,
+                'auto_close_timeout': 30,   # seconds before auto-close attempts
+                'session_timeout': 60,      # seconds - session window after open
+                'token_idle_timeout': 30,   # seconds since last token before close allowed
+                'status_check_interval': 3,
                 'ble_scan_interval': 5
             },
             'tokens': {
@@ -177,7 +177,7 @@ class Config:
     @property
     def auto_close_timeout(self) -> int:
         """Get auto-close timeout in seconds."""
-        return self.config.get('gate', {}).get('auto_close_timeout', 300)
+        return self.config.get('gate', {}).get('auto_close_timeout', 30)
 
     @property
     def session_timeout(self) -> int:
@@ -187,7 +187,7 @@ class Config:
     @property
     def status_check_interval(self) -> int:
         """Get status check interval in seconds."""
-        return self.config.get('gate', {}).get('status_check_interval', 30)
+        return self.config.get('gate', {}).get('status_check_interval', 3)
 
     @property
     def ble_scan_interval(self) -> int:

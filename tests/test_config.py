@@ -10,13 +10,22 @@ class TestConfig:
     """Test configuration management."""
 
     def test_default_config(self):
-        """Test default configuration values."""
-        config = Config()
-        
-        assert config.c4_ip == ''
-        assert config.gate_device_id == 348
-        assert config.auto_close_timeout == 300
-        assert config.session_timeout == 60
+        """Test default configuration values when no keys are present."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            f.write('{}\n')
+            empty_config_file = f.name
+
+        try:
+            config = Config(empty_config_file)
+
+            assert config.c4_ip == ''
+            assert config.gate_device_id == 348
+            assert config.auto_close_timeout == 30
+            assert config.session_timeout == 60
+            assert config.token_idle_timeout == 30
+            assert config.status_check_interval == 3
+        finally:
+            os.unlink(empty_config_file)
 
     def test_load_from_file(self):
         """Test loading configuration from file."""

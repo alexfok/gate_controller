@@ -484,17 +484,17 @@ class Dashboard {
         document.getElementById('config-open-scenario').textContent = config.c4.open_gate_scenario || '-';
         document.getElementById('config-close-scenario').textContent = config.c4.close_gate_scenario || '-';
 
-        // Gate behavior (display values)
-        document.getElementById('config-auto-close').textContent = 
-            config.gate.auto_close_timeout ? `${config.gate.auto_close_timeout}s (${Math.floor(config.gate.auto_close_timeout / 60)}m)` : '-';
-        document.getElementById('config-session-timeout').textContent = 
-            config.gate.session_timeout ? `${config.gate.session_timeout}s (${Math.floor(config.gate.session_timeout / 60)}m)` : '-';
-        document.getElementById('config-token-idle').textContent = 
-            config.gate.token_idle_timeout ? `${config.gate.token_idle_timeout}s` : '-';
-        document.getElementById('config-status-interval').textContent = 
-            config.gate.status_check_interval ? `${config.gate.status_check_interval}s` : '-';
-        document.getElementById('config-scan-interval').textContent = 
-            config.gate.ble_scan_interval ? `${config.gate.ble_scan_interval}s` : '-';
+        // Gate behavior (display values; treat 0 as valid, not falsy)
+        const fmtGateSec = (s) =>
+            typeof s === 'number' && !Number.isNaN(s) ? `${s}s (${Math.floor(s / 60)}m)` : '-';
+        const fmtGateInterval = (s) =>
+            typeof s === 'number' && !Number.isNaN(s) ? `${s}s` : '-';
+
+        document.getElementById('config-auto-close').textContent = fmtGateSec(config.gate.auto_close_timeout);
+        document.getElementById('config-session-timeout').textContent = fmtGateSec(config.gate.session_timeout);
+        document.getElementById('config-token-idle').textContent = fmtGateSec(config.gate.token_idle_timeout);
+        document.getElementById('config-status-interval').textContent = fmtGateInterval(config.gate.status_check_interval);
+        document.getElementById('config-scan-interval').textContent = fmtGateInterval(config.gate.ble_scan_interval);
 
         // Set up edit button click handlers
         const editC4Btn = document.getElementById('btn-edit-c4-config');
@@ -980,11 +980,11 @@ class Dashboard {
         // Include Gate config if editing
         if (this.isEditingGateConfig) {
             config.gate = {
-                auto_close_timeout: parseInt(document.getElementById('input-auto-close').value),
-                session_timeout: parseInt(document.getElementById('input-session-timeout').value),
-                token_idle_timeout: parseInt(document.getElementById('input-token-idle').value),
-                status_check_interval: parseInt(document.getElementById('input-status-interval').value),
-                ble_scan_interval: parseInt(document.getElementById('input-scan-interval').value)
+                auto_close_timeout: parseInt(document.getElementById('input-auto-close').value, 10),
+                session_timeout: parseInt(document.getElementById('input-session-timeout').value, 10),
+                token_idle_timeout: parseInt(document.getElementById('input-token-idle').value, 10),
+                status_check_interval: parseInt(document.getElementById('input-status-interval').value, 10),
+                ble_scan_interval: parseInt(document.getElementById('input-scan-interval').value, 10)
             };
         }
 
@@ -1103,11 +1103,12 @@ class Dashboard {
 
         if (enable) {
             // Populate Gate inputs with current values
-            document.getElementById('input-auto-close').value = this.config.gate.auto_close_timeout;
-            document.getElementById('input-session-timeout').value = this.config.gate.session_timeout;
-            document.getElementById('input-token-idle').value = this.config.gate.token_idle_timeout;
-            document.getElementById('input-status-interval').value = this.config.gate.status_check_interval;
-            document.getElementById('input-scan-interval').value = this.config.gate.ble_scan_interval;
+            const g = this.config.gate || {};
+            document.getElementById('input-auto-close').value = g.auto_close_timeout ?? '';
+            document.getElementById('input-session-timeout').value = g.session_timeout ?? '';
+            document.getElementById('input-token-idle').value = g.token_idle_timeout ?? '';
+            document.getElementById('input-status-interval').value = g.status_check_interval ?? '';
+            document.getElementById('input-scan-interval').value = g.ble_scan_interval ?? '';
         }
     }
 
